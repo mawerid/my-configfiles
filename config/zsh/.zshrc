@@ -49,6 +49,10 @@ alias vim='nvim'
 alias tls='tmux ls'
 alias tks='tmux kill-session -t'
 
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
 alias t='tree -C -L 1 -p'
 alias ta='tree -C -L 1 -puga'
 alias tt='tree -C'
