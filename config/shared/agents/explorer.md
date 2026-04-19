@@ -1,7 +1,8 @@
 ---
-description: Read-only codebase navigator — entry points, call chains, symbol lookup, architecture maps
+name: explorer
+description: Read-only codebase navigator — entry points, call chains, symbol lookup, architecture maps. Use for locating files/symbols, tracing how a feature works, or identifying where a change belongs.
 mode: subagent
-model: lmstudio/nvidia/nemotron-3-nano-4b
+model: haiku
 temperature: 0.1
 tools:
   write: false

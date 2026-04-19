@@ -1,7 +1,8 @@
 ---
-description: Deep investigator for questions beyond the codebase — docs, issues, libraries
+name: researcher
+description: Deep investigator for questions beyond the codebase — docs, GitHub issues, library behavior, approach comparison. Use when the answer requires external sources, not just reading local files.
 mode: subagent
-model: lmstudio/google/gemma-4-e4b
+model: sonnet
 temperature: 0.1
 tools:
   write: false

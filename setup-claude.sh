@@ -44,6 +44,11 @@ backup "$TARGET_DIR/skills"
 cp -R "$SHARED_DIR/skills" "$TARGET_DIR/skills"
 echo "Installed skills"
 
+# shared agents
+backup "$TARGET_DIR/agents"
+cp -R "$SHARED_DIR/agents" "$TARGET_DIR/agents"
+echo "Installed agents"
+
 if [[ "$EUID" -eq 0 ]]; then
     chown -R "$TARGET_USER":"$TARGET_USER" "$TARGET_DIR"
 fi

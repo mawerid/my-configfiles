@@ -65,6 +65,16 @@ echo "Installed AGENTS.md"
 cp -R "$SHARED_DIR/skills" "$TARGET_DIR/skills"
 echo "Installed skills"
 
+# shared agents — translate Claude model IDs to LMStudio IDs
+mkdir -p "$TARGET_DIR/agents"
+for f in "$SHARED_DIR/agents/"*.md; do
+	sed \
+		-e 's|^model: haiku.*|model: lmstudio/nvidia/nemotron-3-nano-4b|' \
+		-e 's|^model: sonnet.*|model: lmstudio/google/gemma-4-e4b|' \
+		"$f" > "$TARGET_DIR/agents/$(basename "$f")"
+done
+echo "Installed shared agents"
+
 if [[ "$EUID" -eq 0 ]]; then
 	chown -R "$TARGET_USER":"$TARGET_USER" "$TARGET_DIR"
 fi

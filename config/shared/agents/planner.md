@@ -1,7 +1,8 @@
 ---
-description: Design and planning agent — surfaces assumptions, proposes approaches, produces implementation plans
+name: planner
+description: Design and planning agent — surfaces assumptions, proposes 2–3 approaches with tradeoffs, produces concrete implementation plans with exact file paths and phases. Use before implementing anything non-trivial.
 mode: subagent
-model: lmstudio/google/gemma-4-e4b
+model: sonnet
 temperature: 0.1
 tools:
   write: false

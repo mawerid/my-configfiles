@@ -1,7 +1,8 @@
 ---
-description: Independent reviewer — validates implementation against requirements and audits for security/privacy risks
+name: reviewer
+description: Independent reviewer — validates implementation against requirements, checks invariants, and audits for security/privacy risks. Use after implementation to get an unbiased second opinion before finalizing.
 mode: subagent
-model: lmstudio/google/gemma-4-e4b
+model: sonnet
 temperature: 0.1
 tools:
   write: false
