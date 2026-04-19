@@ -3,16 +3,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SHARED_DIR="$SCRIPT_DIR/config/shared"
 SOURCE_DIR="$SCRIPT_DIR/config/opencode"
 
 SKIP_INSTALL=0
 if [[ "${1:-}" == "--skip-install" ]]; then
 	SKIP_INSTALL=1
-fi
-
-if [[ ! -d "$SOURCE_DIR" ]]; then
-	echo "Error: source OpenCode config directory not found: $SOURCE_DIR" >&2
-	exit 1
 fi
 
 TARGET_USER="${SUDO_USER:-$USER}"
@@ -29,7 +25,6 @@ fi
 
 TARGET_CONFIG_DIR="${XDG_CONFIG_HOME:-$TARGET_HOME/.config}"
 TARGET_DIR="$TARGET_CONFIG_DIR/opencode"
-
 mkdir -p "$TARGET_CONFIG_DIR"
 
 if [[ "$SKIP_INSTALL" -eq 0 ]]; then
@@ -40,7 +35,6 @@ if [[ "$SKIP_INSTALL" -eq 0 ]]; then
 			echo "Error: curl is required to install OpenCode" >&2
 			exit 1
 		fi
-
 		echo "Installing OpenCode"
 		if [[ -n "${SUDO_USER:-}" ]]; then
 			sudo -u "$TARGET_USER" -H bash -lc 'curl -fsSL https://opencode.ai/install | bash'
@@ -59,7 +53,17 @@ if [[ -e "$TARGET_DIR" ]]; then
 fi
 
 mkdir -p "$TARGET_DIR"
+
+# tool-specific config (opencode.json, agents/)
 cp -R "$SOURCE_DIR/." "$TARGET_DIR/"
+
+# shared rules -> AGENTS.md
+cp "$SHARED_DIR/rules.md" "$TARGET_DIR/AGENTS.md"
+echo "Installed AGENTS.md"
+
+# shared skills
+cp -R "$SHARED_DIR/skills" "$TARGET_DIR/skills"
+echo "Installed skills"
 
 if [[ "$EUID" -eq 0 ]]; then
 	chown -R "$TARGET_USER":"$TARGET_USER" "$TARGET_DIR"

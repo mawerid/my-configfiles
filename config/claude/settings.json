@@ -1,0 +1,31 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(pwd)",
+            "Bash(ls)",
+            "Bash(ls *)",
+            "Bash(tree)",
+            "Bash(tree *)",
+            "Bash(git status)",
+            "Bash(git status *)",
+            "Bash(git diff)",
+            "Bash(git diff *)",
+            "Bash(git log)",
+            "Bash(git log *)",
+            "Bash(python -V)",
+            "Bash(python3 -V)",
+            "Bash(node -v)",
+            "Bash(npm -v)",
+            "Bash(uv --version)",
+            "Bash(cargo --version)",
+            "Bash(cmake --version)",
+            "Bash(go version)"
+        ],
+        "deny": [
+            "Bash(git push*)",
+            "Bash(rm *)",
+            "Bash(ssh *)",
+            "Bash(scp *)"
+        ]
+    }
+}

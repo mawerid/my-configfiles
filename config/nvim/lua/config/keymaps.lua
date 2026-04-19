@@ -1,9 +1,6 @@
 local map = vim.keymap.set
 local opts = { noremap = true, silent = true }
 
-vim.g.mapleader = " "
-vim.g.maplocalleader = " "
-
 map("n", "<leader>w", "<cmd>w<cr>", opts)
 map("n", "<leader>q", "<cmd>q<cr>", opts)
 map("n", "<leader>h", "<cmd>nohlsearch<cr>", opts)
@@ -21,6 +18,3 @@ map("i", "<A-k>", "<Up>", opts)
 map("i", "<A-l>", "<Right>", opts)
 
 map("n", "<leader>bd", "<cmd>bdelete<cr>", opts)
-map("n", "<leader>ff", "<cmd>Telescope find_files<cr>", opts)
-map("n", "<leader>fg", "<cmd>Telescope live_grep<cr>", opts)
-map("n", "<leader>fb", "<cmd>Telescope buffers<cr>", opts)
