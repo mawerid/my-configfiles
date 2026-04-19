@@ -9,23 +9,32 @@ This repo helps bootstrap a terminal-focused environment with:
 - Neovim config
 - Docker daemon registry settings
 - OpenCode CLI and config
+- Claude Code config
 
 ## Repository Layout
 
 ```text
 .
 ├── install.sh
+├── setup-claude.sh
 ├── setup-docker.sh
 ├── setup-opencode.sh
 ├── script/
 │   ├── setup-macos.sh
 │   └── setup-ubuntu.sh
 └── config/
-  ├── docker/daemon.json
-  ├── nvim/
-  ├── opencode/
-  ├── tmux/.tmux.conf
-  └── zsh/.zshrc
+    ├── claude/
+    │   └── settings.json
+    ├── docker/daemon.json
+    ├── nvim/
+    ├── opencode/
+    │   ├── agents/
+    │   └── opencode.json
+    ├── shared/
+    │   ├── rules.md
+    │   └── skills/
+    ├── tmux/.tmux.conf
+    └── zsh/.zshrc
 ```
 
 ## Quick Start
@@ -68,6 +77,12 @@ On supported platforms, it will:
 
 - `config/nvim` -> `~/.config/nvim`
 - existing `~/.config/nvim` is backed up to a timestamped folder
+
+8. Install Claude Code config via `setup-claude.sh`:
+
+- `config/shared/rules.md` -> `~/.claude/CLAUDE.md`
+- `config/claude/settings.json` -> `~/.claude/settings.json`
+- `config/shared/skills/` -> `~/.claude/skills/`
 
 After completion, the scripts print next steps for zsh/tmux/nvim.
 
@@ -119,6 +134,26 @@ Behavior:
 5. Copies config to `${XDG_CONFIG_HOME:-$HOME/.config}/opencode`.
 6. Fixes ownership when run as root.
 
+## Claude Code Setup
+
+Use this script to install repo-managed Claude Code config.
+
+```bash
+cd ~/config
+bash setup-claude.sh
+```
+
+Behavior:
+
+1. Uses shared rules from `config/shared/rules.md` and tool settings from `config/claude/settings.json`.
+2. Resolves target user/home correctly when run with `sudo`.
+3. Backs up existing `CLAUDE.md`, `settings.json`, and `skills/` to timestamped `.bak` files.
+4. Writes:
+   - `config/shared/rules.md` -> `~/.claude/CLAUDE.md`
+   - `config/claude/settings.json` -> `~/.claude/settings.json`
+   - `config/shared/skills/` -> `~/.claude/skills/`
+5. Fixes ownership when run as root.
+
 ## Prerequisites
 
 - `bash`
@@ -143,6 +178,7 @@ Recommended: review scripts before running in production or shared environments.
 - `Homebrew is not installed`: install Homebrew first, then rerun on macOS.
 - `This script must run as root`: rerun Docker setup with `sudo`.
 - `OpenCode config directory not found`: ensure repo structure is intact and run from this repo.
+- `Claude config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
 
 ## License
 

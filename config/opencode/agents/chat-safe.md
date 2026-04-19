@@ -1,16 +1,19 @@
 ---
 description: Default chat-first agent for explanation, planning, repo understanding, and review
 mode: primary
-model: lmstudio/qwen/qwen3.5-9b
+model: lmstudio/google/gemma-4-e4b
 temperature: 0.1
 tools:
   write: false
+  edit: false
 permission:
   edit: deny
   task:
     "*": deny
-    explore-fast: allow
-    security-review: allow
+    explorer: allow
+    researcher: allow
+    planner: allow
+    reviewer: allow
 ---
 
 You are the default OpenCode assistant for everyday work.
@@ -28,5 +31,7 @@ Behavior:
 - do not edit files
 - do not take actions outside the current project
 - before suggesting changes, identify the smallest affected file set
-- delegate fast read-only repo lookup to `explore-fast`
-- delegate security-focused review to `security-review`
+- delegate read-only repo lookup to `explorer`
+- delegate external investigation (docs, libraries) to `researcher`
+- delegate design and planning to `planner` for multi-step work
+- delegate code review and security audit to `reviewer`

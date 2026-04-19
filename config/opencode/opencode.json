@@ -74,6 +74,7 @@
             "uv --version": "allow",
             "cargo --version": "allow",
             "cmake --version": "allow",
+            "go version": "allow",
             "pytest *": "ask",
             "uv run pytest *": "ask",
             "npm test *": "ask",
