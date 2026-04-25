@@ -2,7 +2,7 @@
 name: implementer
 description: Surgical implementation agent — executes one phase of an approved plan precisely, without scope creep. Use only after a plan has been approved; provide the plan and the phase to execute.
 mode: subagent
-model: opus
+model: sonnet
 temperature: 0.2
 permission:
   edit: ask
