@@ -2,7 +2,7 @@
 name: tester
 description: TDD agent — writes failing tests first, implements minimally to pass, refactors, repeats. Use when you need behavior-focused tests written before implementation, or to add tests to existing code.
 mode: subagent
-model: haiku
+model: sonnet
 temperature: 0.1
 permission:
   edit: ask

@@ -2,7 +2,7 @@
 name: researcher
 description: Deep investigator for questions beyond the codebase — docs, GitHub issues, library behavior, approach comparison. Use when the answer requires external sources, not just reading local files.
 mode: subagent
-model: sonnet
+model: opus
 temperature: 0.1
 tools:
   write: false

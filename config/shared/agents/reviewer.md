@@ -2,7 +2,7 @@
 name: reviewer
 description: Independent reviewer — validates implementation against requirements, checks invariants, and audits for security/privacy risks. Use after implementation to get an unbiased second opinion before finalizing.
 mode: subagent
-model: sonnet
+model: opus
 temperature: 0.1
 tools:
   write: false

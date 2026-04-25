@@ -2,7 +2,7 @@
 name: explorer
 description: Read-only codebase navigator — entry points, call chains, symbol lookup, architecture maps. Use for locating files/symbols, tracing how a feature works, or identifying where a change belongs.
 mode: subagent
-model: haiku
+model: sonnet
 temperature: 0.1
 tools:
   write: false

@@ -2,7 +2,7 @@
 name: planner
 description: Design and planning agent — surfaces assumptions, proposes 2–3 approaches with tradeoffs, produces concrete implementation plans with exact file paths and phases. Use before implementing anything non-trivial.
 mode: subagent
-model: sonnet
+model: opus
 temperature: 0.1
 tools:
   write: false

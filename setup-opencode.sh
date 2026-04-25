@@ -69,8 +69,8 @@ echo "Installed skills"
 mkdir -p "$TARGET_DIR/agents"
 for f in "$SHARED_DIR/agents/"*.md; do
 	sed \
-		-e 's|^model: haiku.*|model: lmstudio/nvidia/nemotron-3-nano-4b|' \
-		-e 's|^model: sonnet.*|model: lmstudio/google/gemma-4-e4b|' \
+		-e 's|^model: sonnet.*|model: lmstudio/nvidia/nemotron-3-nano-4b|' \
+		-e 's|^model: opus.*|model: lmstudio/google/gemma-4-e4b|' \
 		"$f" > "$TARGET_DIR/agents/$(basename "$f")"
 done
 echo "Installed shared agents"
