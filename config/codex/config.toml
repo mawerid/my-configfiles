@@ -1,0 +1,15 @@
+approval_policy = "untrusted"
+sandbox_mode = "workspace-write"
+developer_instructions = """
+- Default to asking before non-trusted commands or sensitive operations.
+- Do not read .env, .env.*, *.env, *.env.*, *.pem, *.key, *.p12, *.crt, *.der, *.pfx, *.sqlite, *.db, or *.kdbx files unless the user explicitly asks.
+"""
+
+[execpolicy]
+user_rules = ["~/.codex/execpolicy/default.rules"]
+
+[sandbox_workspace_write]
+network_access = false
+
+[features]
+exec_permission_approvals = true

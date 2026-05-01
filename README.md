@@ -10,6 +10,7 @@ This repo helps bootstrap a terminal-focused environment with:
 - Docker daemon registry settings
 - OpenCode CLI and config
 - Claude Code config
+- Codex config
 
 ## Repository Layout
 
@@ -17,6 +18,7 @@ This repo helps bootstrap a terminal-focused environment with:
 .
 ├── install.sh
 ├── setup-claude.sh
+├── setup-codex.sh
 ├── setup-docker.sh
 ├── setup-opencode.sh
 ├── script/
@@ -25,6 +27,9 @@ This repo helps bootstrap a terminal-focused environment with:
 └── config/
     ├── claude/
     │   └── settings.json
+    ├── codex/
+    │   ├── config.toml
+    │   └── execpolicy/
     ├── docker/daemon.json
     ├── nvim/
     ├── opencode/
@@ -154,6 +159,38 @@ Behavior:
    - `config/shared/skills/` -> `~/.claude/skills/`
 5. Fixes ownership when run as root.
 
+## Codex Setup
+
+Use this script to install repo-managed Codex config.
+
+```bash
+cd ~/config
+bash setup-codex.sh
+```
+
+Behavior:
+
+1. Uses shared rules from `config/shared/rules.md` and Codex config from `config/codex`.
+2. Resolves target user/home correctly when run with `sudo`.
+3. Backs up existing `AGENTS.md`, `config.toml`, `execpolicy/`, `skills/`, and `agents/` to timestamped `.bak` files.
+4. Writes:
+   - `config/shared/rules.md` -> `~/.codex/AGENTS.md`
+   - `config/codex/config.toml` -> `~/.codex/config.toml`
+   - `config/codex/execpolicy/` -> `~/.codex/execpolicy/`
+   - `config/shared/skills/` -> `~/.codex/skills/`
+   - `config/shared/agents/` -> `~/.codex/agents/`
+5. Mirrors the OpenCode permission setup by using Codex approval/sandbox config plus execpolicy rules for command allow/deny behavior.
+6. Rewrites shared Claude model names in installed agents and skills:
+   - `sonnet` -> `${CODEX_SONNET_MODEL:-gpt-5.4}`
+   - `opus` -> `${CODEX_OPUS_MODEL:-gpt-5.5}`
+7. Fixes ownership when run as root.
+
+Override the Codex model mapping if needed:
+
+```bash
+CODEX_SONNET_MODEL=gpt-5.4-mini CODEX_OPUS_MODEL=gpt-5.5 bash setup-codex.sh
+```
+
 ## Prerequisites
 
 - `bash`
@@ -179,6 +216,7 @@ Recommended: review scripts before running in production or shared environments.
 - `This script must run as root`: rerun Docker setup with `sudo`.
 - `OpenCode config directory not found`: ensure repo structure is intact and run from this repo.
 - `Claude config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
+- `Codex config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
 
 ## License
 
