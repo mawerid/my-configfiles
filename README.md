@@ -8,7 +8,6 @@ This repo helps bootstrap a terminal-focused environment with:
 - tmux + TPM
 - Neovim config
 - Docker daemon registry settings
-- OpenCode CLI and config
 - Claude Code config
 - Codex config
 
@@ -20,7 +19,6 @@ This repo helps bootstrap a terminal-focused environment with:
 ├── setup-claude.sh
 ├── setup-codex.sh
 ├── setup-docker.sh
-├── setup-opencode.sh
 ├── script/
 │   ├── setup-macos.sh
 │   └── setup-ubuntu.sh
@@ -32,9 +30,6 @@ This repo helps bootstrap a terminal-focused environment with:
     │   └── execpolicy/
     ├── docker/daemon.json
     ├── nvim/
-    ├── opencode/
-    │   ├── agents/
-    │   └── opencode.json
     ├── shared/
     │   ├── rules.md
     │   └── skills/
@@ -115,30 +110,6 @@ Current daemon config includes these insecure registry CIDRs:
 - `10.10.0.0/16`
 - `192.168.0.0/16`
 
-## OpenCode Setup
-
-Use this script to install OpenCode (optional) and copy repo-managed OpenCode config.
-
-```bash
-cd ~/config
-bash setup-opencode.sh
-```
-
-Optional flag:
-
-```bash
-bash setup-opencode.sh --skip-install
-```
-
-Behavior:
-
-1. Uses source config from `config/opencode`.
-2. Installs OpenCode via `curl -fsSL https://opencode.ai/install | bash` if missing.
-3. Resolves target user/home correctly when run with `sudo`.
-4. Backs up existing OpenCode config directory to a timestamped `.bak` directory.
-5. Copies config to `${XDG_CONFIG_HOME:-$HOME/.config}/opencode`.
-6. Fixes ownership when run as root.
-
 ## Claude Code Setup
 
 Use this script to install repo-managed Claude Code config.
@@ -179,7 +150,7 @@ Behavior:
    - `config/codex/execpolicy/` -> `~/.codex/execpolicy/`
    - `config/shared/skills/` -> `~/.codex/skills/`
    - `config/shared/agents/` -> `~/.codex/agents/`
-5. Mirrors the OpenCode permission setup by using Codex approval/sandbox config plus execpolicy rules for command allow/deny behavior.
+5. Uses Codex approval/sandbox config plus execpolicy rules for command allow/deny behavior.
 6. Rewrites shared Claude model names in installed agents and skills:
    - `sonnet` -> `${CODEX_SONNET_MODEL:-gpt-5.4}`
    - `opus` -> `${CODEX_OPUS_MODEL:-gpt-5.5}`
@@ -214,7 +185,6 @@ Recommended: review scripts before running in production or shared environments.
 - `Unsupported Linux distro`: current auto installer supports Ubuntu only.
 - `Homebrew is not installed`: install Homebrew first, then rerun on macOS.
 - `This script must run as root`: rerun Docker setup with `sudo`.
-- `OpenCode config directory not found`: ensure repo structure is intact and run from this repo.
 - `Claude config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
 - `Codex config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
 
