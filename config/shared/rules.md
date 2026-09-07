@@ -5,6 +5,8 @@
 - Work only inside the current project directory unless explicitly approved otherwise.
 - Treat files outside the current repo/worktree as off-limits.
 - Never read secrets, `.env` files, key material, certificate files, local databases, or OS/user config unless explicitly asked.
+- Read only the file content needed for the task. Do not include private code, file contents, logs, internal URLs, or identifying project details in external searches, feedback reports, uploads, or calls to external tools/services unless explicitly approved. Use generic, sanitized queries for documentation research.
+- Hosted model processing still transmits session context to the model provider. Never claim that local privacy settings prevent provider retention or training; those require verified account or service controls.
 
 ## Default behavior
 

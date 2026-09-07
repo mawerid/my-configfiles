@@ -3,16 +3,15 @@ import argparse
 import datetime
 import json
 import os
-from pathlib import Path
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 
 if sys.version_info < (3, 11):
     sys.exit("Python 3.11 or newer is required.")
 
 import tomllib
-
 
 ROOT = Path(__file__).resolve().parents[1]
 BEGIN = "<!-- config-repo:begin -->"
@@ -25,7 +24,9 @@ def merge(existing, managed):
         if isinstance(value, dict) and isinstance(result.get(key), dict):
             result[key] = merge(result[key], value)
         elif isinstance(value, list) and isinstance(result.get(key), list):
-            result[key] = result[key] + [item for item in value if item not in result[key]]
+            result[key] = result[key] + [
+                item for item in value if item not in result[key]
+            ]
         else:
             result[key] = value
     return result
@@ -43,12 +44,18 @@ def toml_value(value):
     if isinstance(value, list):
         return "[" + ", ".join(toml_value(item) for item in value) + "]"
     if isinstance(value, dict):
-        return "{ " + ", ".join(f"{json.dumps(k)} = {toml_value(v)}" for k, v in value.items()) + " }"
+        return (
+            "{ "
+            + ", ".join(f"{json.dumps(k)} = {toml_value(v)}" for k, v in value.items())
+            + " }"
+        )
     raise ValueError(f"Unsupported TOML value: {type(value).__name__}")
 
 
 def toml_text(data):
-    text = "".join(f"{json.dumps(key)} = {toml_value(value)}\n" for key, value in data.items())
+    text = "".join(
+        f"{json.dumps(key)} = {toml_value(value)}\n" for key, value in data.items()
+    )
     tomllib.loads(text)
     return text
 
@@ -83,6 +90,30 @@ def install(tool, target):
     loader = tomllib.loads if tool == "codex" else json.loads
     existing = loader(config_path.read_text()) if config_path.exists() else {}
     managed = loader((source / name).read_text())
+    if tool == "claude":
+        manifest_path = target / "repo-managed-permissions.json"
+        check_path(manifest_path)
+        previous = (
+            json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+        )
+        if not isinstance(previous, dict) or any(
+            key not in ("allow", "ask", "deny")
+            or not isinstance(value, list)
+            or any(not isinstance(item, str) for item in value)
+            for key, value in previous.items()
+        ):
+            raise ValueError("Invalid repo-managed permission manifest")
+        permissions = existing.setdefault("permissions", {})
+        owned = {}
+        for key in ("allow", "ask", "deny"):
+            current = permissions.get(key, [])
+            desired = managed.get("permissions", {}).get(key, [])
+            if not isinstance(current, list) or not isinstance(desired, list):
+                raise ValueError(f"Expected a permission list: {key}")
+            personal = [item for item in current if item not in previous.get(key, [])]
+            owned[key] = [item for item in desired if item not in personal]
+            if key in permissions:
+                permissions[key] = personal
     if tool == "codex":
         policy = existing.get("execpolicy", {})
         if policy.get("user_rules") == ["~/.codex/execpolicy/default.rules"]:
@@ -94,14 +125,18 @@ def install(tool, target):
         if not features:
             existing.pop("features", None)
         old_instructions = existing.get("developer_instructions", "")
-        managed["developer_instructions"] = instructions(old_instructions, managed["developer_instructions"])
+        managed["developer_instructions"] = instructions(
+            old_instructions, managed["developer_instructions"]
+        )
     data = merge(existing, managed)
     rendered = toml_text(data) if tool == "codex" else json.dumps(data, indent=4) + "\n"
     writes = {config_path: rendered.encode()}
     rules_path = target / ("AGENTS.md" if tool == "codex" else "CLAUDE.md")
     check_path(rules_path)
     old_rules = rules_path.read_text() if rules_path.exists() else ""
-    writes[rules_path] = instructions(old_rules, (shared / "rules.md").read_text()).encode()
+    writes[rules_path] = instructions(
+        old_rules, (shared / "rules.md").read_text()
+    ).encode()
     for directory in (shared / "skills", source / "agents"):
         files = list(directory.rglob("*"))
         if not files:
@@ -116,12 +151,19 @@ def install(tool, target):
                             raise ValueError(f"Missing {key}: {file}")
                 writes[target / directory.name / file.relative_to(directory)] = content
     if tool == "codex":
-        writes[target / "rules/repo-default.rules"] = (source / "rules/repo-default.rules").read_bytes()
+        writes[target / "rules/repo-default.rules"] = (
+            source / "rules/repo-default.rules"
+        ).read_bytes()
+    else:
+        writes[manifest_path] = (json.dumps(owned, indent=4) + "\n").encode()
     for path in writes:
         check_path(path)
     # Prepare all content before replacing any installed file.
-    changed = {path: content for path, content in writes.items()
-               if not path.exists() or path.read_bytes() != content}
+    changed = {
+        path: content
+        for path, content in writes.items()
+        if not path.exists() or path.read_bytes() != content
+    }
     for path, content in changed.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
@@ -129,7 +171,9 @@ def install(tool, target):
             backup = path.with_name(f"{path.name}.bak.{stamp}")
             shutil.copy2(path, backup)
             print(f"Backed up: {backup}")
-        descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+        descriptor, temporary = tempfile.mkstemp(
+            dir=path.parent, prefix=f".{path.name}."
+        )
         try:
             with os.fdopen(descriptor, "wb") as stream:
                 stream.write(content)
@@ -141,14 +185,22 @@ def install(tool, target):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Install repo-managed agent configuration; preserve unrelated settings and files.")
+    parser = argparse.ArgumentParser(
+        description="Install repo-managed agent configuration; preserve unrelated settings and files."
+    )
     parser.add_argument("tool", choices=("codex", "claude"))
-    parser.add_argument("--target-dir", type=Path, help="Override the destination (also useful for testing)")
+    parser.add_argument(
+        "--target-dir",
+        type=Path,
+        help="Override the destination (also useful for testing)",
+    )
     args = parser.parse_args()
     if os.geteuid() == 0:
         parser.error("Run as your normal user, without sudo.")
     variable = "CODEX_HOME" if args.tool == "codex" else "CLAUDE_CONFIG_DIR"
-    target = args.target_dir or Path(os.environ.get(variable) or Path.home() / f".{args.tool}")
+    target = args.target_dir or Path(
+        os.environ.get(variable) or Path.home() / f".{args.tool}"
+    )
     try:
         install(args.tool, target.absolute())
     except (OSError, ValueError, TypeError) as error:

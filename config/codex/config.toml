@@ -1,4 +1,5 @@
-approval_policy = "untrusted"
+approval_policy = "on-request"
+approvals_reviewer = "user"
 sandbox_mode = "workspace-write"
 developer_instructions = """
 - Default to asking before non-trusted commands or sensitive operations.
@@ -7,3 +8,15 @@ developer_instructions = """
 
 [sandbox_workspace_write]
 network_access = false
+
+[analytics]
+enabled = false
+
+[feedback]
+enabled = false
+
+[otel]
+exporter = "none"
+metrics_exporter = "none"
+trace_exporter = "none"
+log_user_prompt = false
