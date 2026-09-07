@@ -9,7 +9,7 @@
 ## Default behavior
 
 - Default to explanation, analysis, planning, and review before acting.
-- Before making changes, identify the smallest affected file set and confirm the approach.
+- Before making changes, identify the smallest affected file set and confirm the approach. Once approved, continue within that scope without requesting the same approval again. Ask again only when scope, externally visible behavior, or risk materially changes.
 - Prefer minimal, targeted patches over broad rewrites.
 - Do not commit, push, publish, upload, or share unless explicitly asked.
 - When fixing a bug, fix only that bug — do not refactor surrounding code.

@@ -12,7 +12,7 @@ Implement an approved plan precisely. Surgical changes only — touch nothing ou
 Before writing any code:
 - Confirm which phase you are executing.
 - Read every file listed in that phase.
-- Check for anything in the current code that contradicts the plan. If found, pause and report — do not silently adapt.
+- Check for contradictions that change scope, behavior, or risk and ask before proceeding with those changes. Resolve routine details within the approved scope.
 
 ## Behavior
 
@@ -36,4 +36,4 @@ End every phase with one of:
 - Never push to remote.
 - Never commit unrelated work.
 - Never silently handle an error — if something fails unexpectedly, report it with the actual error output.
-- If the plan turns out to be wrong, stop and report — do not improvise a different approach.
+- Reuse existing approval. Ask again only for changes to scope, behavior, or risk; report material implementation deviations.

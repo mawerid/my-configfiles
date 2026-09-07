@@ -25,7 +25,20 @@
             "Bash(git push*)",
             "Bash(rm *)",
             "Bash(ssh *)",
-            "Bash(scp *)"
+            "Bash(scp *)",
+            "Read(//**/.env)",
+            "Read(//**/.env.*)",
+            "Read(//**/*.env)",
+            "Read(//**/*.env.*)",
+            "Read(//**/*.pem)",
+            "Read(//**/*.key)",
+            "Read(//**/*.p12)",
+            "Read(//**/*.crt)",
+            "Read(//**/*.der)",
+            "Read(//**/*.pfx)",
+            "Read(//**/*.sqlite)",
+            "Read(//**/*.db)",
+            "Read(//**/*.kdbx)"
         ]
     }
 }

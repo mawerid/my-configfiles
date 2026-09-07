@@ -3,7 +3,7 @@ prefix_rule(
     decision = "allow",
     justification = "Read-only workspace inspection.",
     match = [
-        ["pwd"],
+        "pwd",
     ],
 )
 
@@ -12,9 +12,9 @@ prefix_rule(
     decision = "allow",
     justification = "Read-only workspace inspection.",
     match = [
-        ["ls"],
-        ["ls", "-la"],
-        ["ls", "config"],
+        "ls",
+        "ls -la",
+        "ls config",
     ],
 )
 
@@ -23,8 +23,8 @@ prefix_rule(
     decision = "allow",
     justification = "Read-only workspace inspection.",
     match = [
-        ["tree"],
-        ["tree", "config"],
+        "tree",
+        "tree config",
     ],
 )
 
@@ -33,11 +33,11 @@ prefix_rule(
     decision = "allow",
     justification = "Read-only git inspection.",
     match = [
-        ["git", "status"],
-        ["git", "status", "--short"],
+        "git status",
+        "git status --short",
     ],
     not_match = [
-        ["git", "push"],
+        "git push",
     ],
 )
 
@@ -46,8 +46,8 @@ prefix_rule(
     decision = "allow",
     justification = "Read-only git inspection.",
     match = [
-        ["git", "diff"],
-        ["git", "diff", "--stat"],
+        "git diff",
+        "git diff --stat",
     ],
 )
 
@@ -56,8 +56,8 @@ prefix_rule(
     decision = "allow",
     justification = "Read-only git inspection.",
     match = [
-        ["git", "log"],
-        ["git", "log", "--oneline"],
+        "git log",
+        "git log --oneline",
     ],
 )
 
@@ -114,8 +114,8 @@ prefix_rule(
     decision = "forbidden",
     justification = "Publishing changes must be explicit.",
     match = [
-        ["git", "push"],
-        ["git", "push", "origin", "main"],
+        "git push",
+        "git push origin main",
     ],
 )
 
@@ -124,8 +124,8 @@ prefix_rule(
     decision = "forbidden",
     justification = "Destructive file removal must be explicit.",
     match = [
-        ["rm", "file"],
-        ["rm", "-rf", "dir"],
+        "rm file",
+        "rm -rf dir",
     ],
 )
 
@@ -134,7 +134,7 @@ prefix_rule(
     decision = "forbidden",
     justification = "Remote shell access must be explicit.",
     match = [
-        ["ssh", "host"],
+        "ssh host",
     ],
 )
 
@@ -143,6 +143,6 @@ prefix_rule(
     decision = "forbidden",
     justification = "Remote file transfer must be explicit.",
     match = [
-        ["scp", "file", "host:path"],
+        "scp file host:path",
     ],
 )

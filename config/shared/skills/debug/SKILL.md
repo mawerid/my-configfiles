@@ -29,7 +29,7 @@ Systematic root-cause investigation. Find the real cause before touching any cod
 - Only proceed after Phases 1–3 confirm the root cause.
 - Create a failing test that captures the bug before fixing it.
 - Implement the minimal fix.
-- Run the full test suite. Remove instrumentation.
+- Run affected tests; broaden to the full suite when shared behavior or unresolved risk warrants it. Remove instrumentation.
 - If three fix attempts fail, stop and report findings.
 
 ## Rules

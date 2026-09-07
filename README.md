@@ -20,14 +20,17 @@ This repo helps bootstrap a terminal-focused environment with:
 ├── setup-codex.sh
 ├── setup-docker.sh
 ├── script/
+│   ├── setup-agents.py
 │   ├── setup-macos.sh
 │   └── setup-ubuntu.sh
 └── config/
     ├── claude/
+    │   ├── agents/
     │   └── settings.json
     ├── codex/
     │   ├── config.toml
-    │   └── execpolicy/
+    │   ├── agents/
+    │   └── rules/
     ├── docker/daemon.json
     ├── nvim/
     ├── shared/
@@ -78,11 +81,7 @@ On supported platforms, it will:
 - `config/nvim` -> `~/.config/nvim`
 - existing `~/.config/nvim` is backed up to a timestamped folder
 
-8. Install Claude Code config via `setup-claude.sh`:
-
-- `config/shared/rules.md` -> `~/.claude/CLAUDE.md`
-- `config/claude/settings.json` -> `~/.claude/settings.json`
-- `config/shared/skills/` -> `~/.claude/skills/`
+Agent configuration is installed separately with `setup-claude.sh` and `setup-codex.sh`.
 
 After completion, the scripts print next steps for zsh/tmux/nvim.
 
@@ -110,63 +109,74 @@ Current daemon config includes these insecure registry CIDRs:
 - `10.10.0.0/16`
 - `192.168.0.0/16`
 
-## Claude Code Setup
+## Agent Setup
 
-Use this script to install repo-managed Claude Code config.
+Requires Python 3.11+ and a current Codex or Claude Code installation. Run these scripts as your normal user, **without sudo**, on macOS or Linux:
 
 ```bash
-cd ~/config
 bash setup-claude.sh
-```
-
-Behavior:
-
-1. Uses shared rules from `config/shared/rules.md` and tool settings from `config/claude/settings.json`.
-2. Resolves target user/home correctly when run with `sudo`.
-3. Backs up existing `CLAUDE.md`, `settings.json`, and `skills/` to timestamped `.bak` files.
-4. Writes:
-   - `config/shared/rules.md` -> `~/.claude/CLAUDE.md`
-   - `config/claude/settings.json` -> `~/.claude/settings.json`
-   - `config/shared/skills/` -> `~/.claude/skills/`
-5. Fixes ownership when run as root.
-
-## Codex Setup
-
-Use this script to install repo-managed Codex config.
-
-```bash
-cd ~/config
 bash setup-codex.sh
 ```
 
-Behavior:
+The scripts configure the tools; they do not install the CLIs. `install.sh` does not run these scripts.
 
-1. Uses shared rules from `config/shared/rules.md` and Codex config from `config/codex`.
-2. Resolves target user/home correctly when run with `sudo`.
-3. Backs up existing `AGENTS.md`, `config.toml`, `execpolicy/`, `skills/`, and `agents/` to timestamped `.bak` files.
-4. Writes:
-   - `config/shared/rules.md` -> `~/.codex/AGENTS.md`
-   - `config/codex/config.toml` -> `~/.codex/config.toml`
-   - `config/codex/execpolicy/` -> `~/.codex/execpolicy/`
-   - `config/shared/skills/` -> `~/.codex/skills/`
-   - `config/shared/agents/` -> `~/.codex/agents/`
-5. Uses Codex approval/sandbox config plus execpolicy rules for command allow/deny behavior.
-6. Rewrites shared Claude model names in installed agents and skills:
-   - `sonnet` -> `${CODEX_SONNET_MODEL:-gpt-5.4}`
-   - `opus` -> `${CODEX_OPUS_MODEL:-gpt-5.5}`
-7. Fixes ownership when run as root.
+| Source | Claude destination | Codex destination |
+| --- | --- | --- |
+| `config/shared/rules.md` | `~/.claude/CLAUDE.md` | `~/.codex/AGENTS.md` |
+| `config/shared/skills/` | `~/.claude/skills/` | `~/.codex/skills/` |
+| `config/claude/agents/*.md` | `~/.claude/agents/` | — |
+| `config/codex/agents/*.toml` | — | `~/.codex/agents/` |
+| Tool settings | `~/.claude/settings.json` | `~/.codex/config.toml` |
+| `config/codex/rules/repo-default.rules` | — | `~/.codex/rules/repo-default.rules` |
 
-Override the Codex model mapping if needed:
+`CLAUDE_CONFIG_DIR` and `CODEX_HOME` override the default directories. Both scripts also accept `--target-dir PATH` for an explicit destination.
+
+Installation behavior:
+
+- Merge settings recursively. Repo values win for managed scalar keys; lists retain existing entries and add missing repo entries. Unrelated settings, hooks, MCP servers, skills, agents, and command rules remain in place.
+- Preserve personal instructions around a marked repo-managed block in `CLAUDE.md`/`AGENTS.md` and Codex developer instructions.
+- Replace only individual repo-managed files that changed, with timestamped `.bak` copies. Identical repeat installs make no changes.
+- Validate source content and existing settings before writing. Malformed settings and symlinked destinations stop installation.
+- Rewrite TOML formatting and comments when merging; the backup retains the original text.
+
+Agent model defaults are configured in each tool’s native agent files:
+
+| Agent | Codex model | Codex reasoning | Claude model |
+| --- | --- | --- | --- |
+| Explorer | `gpt-5.6-terra` | `medium` | `sonnet` |
+| Planner | `gpt-5.6-sol` | `high` | `opus` |
+| Implementer | `gpt-5.6-sol` | `medium` | `sonnet` |
+| Tester | `gpt-5.6-sol` | `medium` | `sonnet` |
+| Reviewer | `gpt-5.6-sol` | `high` | `opus` |
+| Researcher | `gpt-6-astra` | `high` | `opus` |
+
+Change the native agent files to adjust these defaults. The old `CODEX_SONNET_MODEL` and `CODEX_OPUS_MODEL` translation is no longer used. Shared skills use the model of the agent invoking them.
+
+Read-only Claude agents receive `Read`, `Glob`, and `Grep`; the researcher also receives web tools. The parent supplies shell-derived evidence such as a diff when needed. Codex read-only agents request the `read-only` sandbox; active parent permission overrides can take precedence.
+
+Claude settings block built-in reads of sensitive file patterns. These rules do not constrain every arbitrary subprocess; they are not an OS-level privacy boundary. The shared instructions also require explicit permission before reading sensitive files or leaving the project. A configured deny remains a deny even after conversational approval; review permissions explicitly when an exception is needed.
+
+Migration notes:
+
+- The installer removes the old Codex `execpolicy.user_rules` entry when it matches this repo's former value, and removes `features.exec_permission_approvals`.
+- Legacy `execpolicy/` files and old Markdown files in Codex's `agents/` directory are left untouched; the current loader uses the new rules path and TOML agents.
+- Existing unmarked instruction text is preserved, so a first migration may retain a duplicate of the old shared rules. Review that text if old instructions conflict with the new block.
+
+Validation, without modifying your installed setup:
 
 ```bash
-CODEX_SONNET_MODEL=gpt-5.4-mini CODEX_OPUS_MODEL=gpt-5.5 bash setup-codex.sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+bash -n setup-claude.sh setup-codex.sh
 ```
+
+The tests create and remove temporary destinations inside this repo. Native formats follow the [Codex subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Codex rules documentation](https://learn.chatgpt.com/docs/agent-configuration/rules), and [Claude subagent documentation](https://code.claude.com/docs/en/sub-agents). Sensitive-file restrictions follow [Claude permissions](https://code.claude.com/docs/en/permissions).
 
 ## Prerequisites
 
 - `bash`
 - `git`
 - `curl`
+- Python 3.11+ for agent setup
 - `sudo` access for system package installs and Docker setup
 
 Notes:
@@ -185,8 +195,9 @@ Recommended: review scripts before running in production or shared environments.
 - `Unsupported Linux distro`: current auto installer supports Ubuntu only.
 - `Homebrew is not installed`: install Homebrew first, then rerun on macOS.
 - `This script must run as root`: rerun Docker setup with `sudo`.
-- `Claude config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
-- `Codex config directory not found` / `shared config directory not found`: ensure repo structure is intact and run from this repo.
+- `Python 3.11 or newer is required`: ensure `python3` selects a supported interpreter.
+- `Run as your normal user, without sudo`: agent settings belong to your user account.
+- `Installation failed`: fix the reported malformed file or destination before retrying; settings contents are never printed by the installer.
 
 ## License
 

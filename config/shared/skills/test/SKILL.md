@@ -20,7 +20,7 @@ TDD workflow. Write tests first, make them pass, then refactor. Applied to deter
 
 ### Refactor
 - Clean up only what you just wrote.
-- Re-run the full test suite — all tests must still pass.
+- Run affected tests; broaden to the full suite when shared behavior or unresolved risk warrants it.
 - Repeat for the next behavior.
 
 ## Test rules
