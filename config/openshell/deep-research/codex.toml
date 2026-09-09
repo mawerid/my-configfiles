@@ -1,0 +1,14 @@
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+
+[analytics]
+enabled = false
+
+[feedback]
+enabled = false
+
+[otel]
+exporter = "none"
+metrics_exporter = "none"
+trace_exporter = "none"
+log_user_prompt = false

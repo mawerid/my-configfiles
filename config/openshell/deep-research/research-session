@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -eo pipefail
+export PATH="/usr/local/cuda/bin:$PATH"
+unset PIP_CONSTRAINT PYTHONPATH
+
+case "${1:-shell}" in
+    ros)
+        shift
+        if [ "$#" -eq 0 ]; then
+            printf 'Usage: research-session ros COMMAND...\n' >&2
+            exit 2
+        fi
+        unset VIRTUAL_ENV
+        export PATH=/usr/bin:/bin:/usr/local/bin:/usr/local/cuda/bin
+        source /opt/ros/jazzy/setup.bash
+        export PYTHONPATH="/usr/lib/python3/dist-packages:${PYTHONPATH:-}"
+        exec "$@"
+        ;;
+    codex|claude) exec "$@" ;;
+    shell) if [ "$#" -gt 0 ]; then shift; fi; exec /bin/bash -l "$@" ;;
+    check) shift; exec bash /opt/deep-research-smoke/check.sh "$@" ;;
+    *) printf 'Usage: research-session {codex|claude|shell|ros COMMAND...|check [--gpu]}\n' >&2; exit 2 ;;
+esac

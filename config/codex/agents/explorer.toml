@@ -1,6 +1,6 @@
 name = "explorer"
-model = "gpt-5.6-terra"
-model_reasoning_effort = "medium"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "high"
 description = "Read-only codebase navigator \u2014 entry points, call chains, symbol lookup, architecture maps. Use for locating files/symbols, tracing how a feature works, or identifying where a change belongs."
 sandbox_mode = "read-only"
 developer_instructions = """

@@ -1,0 +1,72 @@
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc, /opt, /proc, /dev/urandom, /var/log]
+  read_write: [/sandbox, /tmp, /dev/null, /dev/shm]
+landlock:
+  compatibility: hard_requirement
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+network_policies:
+  subscription_agents:
+    endpoints:
+      - {host: chatgpt.com, port: 443}
+      - {host: auth.openai.com, port: 443}
+      - {host: api.openai.com, port: 443}
+      - {host: api.anthropic.com, port: 443}
+      - {host: claude.ai, port: 443}
+      - {host: auth.claude.ai, port: 443}
+      - {host: console.anthropic.com, port: 443}
+      - {host: platform.claude.com, port: 443}
+    binaries:
+      - {path: /usr/local/bin/claude}
+      - {path: /usr/local/bin/codex}
+      - {path: /usr/bin/node}
+      - {path: "/usr/local/lib/node_modules/@openai/**"}
+  research_downloads:
+    endpoints:
+      - {host: github.com, port: 443}
+      - {host: api.github.com, port: 443}
+      - {host: raw.githubusercontent.com, port: 443}
+      - {host: objects.githubusercontent.com, port: 443}
+      - {host: release-assets.githubusercontent.com, port: 443}
+      - {host: codeload.github.com, port: 443}
+      - {host: pypi.org, port: 443}
+      - {host: files.pythonhosted.org, port: 443}
+      - {host: download.pytorch.org, port: 443}
+      - {host: registry.npmjs.org, port: 443}
+      - {host: huggingface.co, port: 443}
+      - {host: "*.huggingface.co", port: 443}
+      - {host: "*.hf.co", port: 443}
+      - {host: "*.xethub.hf.co", port: 443}
+      - {host: arxiv.org, port: 443}
+      - {host: export.arxiv.org, port: 443}
+      - {host: docs.ros.org, port: 443}
+      - {host: index.ros.org, port: 443}
+      - {host: docs.opencv.org, port: 443}
+      - {host: docs.nvidia.com, port: 443}
+      - {host: pytorch.org, port: 443}
+      - {host: docs.pytorch.org, port: 443}
+      - {host: onnxruntime.ai, port: 443}
+      - {host: numpy.org, port: 443}
+      - {host: scipy.org, port: 443}
+      - {host: docs.scipy.org, port: 443}
+      - {host: cmake.org, port: 443}
+      - {host: eigen.tuxfamily.org, port: 443}
+      - {host: ceres-solver.org, port: 443}
+      - {host: borglab.github.io, port: 443}
+      - {host: developers.openai.com, port: 443}
+      - {host: learn.chatgpt.com, port: 443}
+      - {host: code.claude.com, port: 443}
+    binaries:
+      - {path: /usr/bin/curl}
+      - {path: /usr/bin/git}
+      - {path: /usr/lib/git-core/git-remote-https}
+      - {path: /usr/bin/gh}
+      - {path: /usr/bin/python3.12}
+      - {path: /usr/local/bin/uv}
+      - {path: /usr/bin/node}
+      - {path: /usr/local/bin/claude}
+      - {path: /usr/local/bin/codex}
+      - {path: "/usr/local/lib/node_modules/@openai/**"}

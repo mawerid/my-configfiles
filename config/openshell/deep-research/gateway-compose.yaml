@@ -1,0 +1,22 @@
+services:
+  gateway:
+    image: ghcr.io/nvidia/openshell/gateway:latest
+    command: []
+    user: "0"
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      OPENSHELL_GATEWAY_CONFIG: /etc/openshell/gateway.toml
+      OPENSHELL_DB_URL: "sqlite:/var/lib/deep-research-gateway-state/gateway.db?mode=rwc"
+      XDG_DATA_HOME: "${DEEP_RESEARCH_GATEWAY_DATA}"
+      HOME: "${DEEP_RESEARCH_GATEWAY_DATA}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "host.openshell.internal:host-gateway"
+    volumes:
+      - "${DEEP_RESEARCH_GATEWAY_DATA:?Set an absolute gateway data directory}:${DEEP_RESEARCH_GATEWAY_DATA}"
+      - gateway-database:/var/lib/deep-research-gateway-state
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./gateway.toml:/etc/openshell/gateway.toml:ro
+volumes:
+  gateway-database:

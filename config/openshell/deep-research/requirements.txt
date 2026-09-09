@@ -1,0 +1,13 @@
+numpy~=2.5.3
+scipy~=1.18.1
+pandas~=3.0.5
+matplotlib~=3.11.1
+pytest~=9.1.1
+jupyterlab~=4.6.3
+onnx~=1.22.0
+opencv-python~=5.0.0.93
+gtsam~=4.3.0a2
+pypcd4~=1.4.3
+rerun-sdk~=0.37.1
+rosbags~=0.11.5
+pyceres~=2.6.0

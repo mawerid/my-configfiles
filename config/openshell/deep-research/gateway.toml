@@ -1,0 +1,16 @@
+[openshell]
+version = 1
+
+[openshell.gateway]
+bind_address = "127.0.0.1:8080"
+health_bind_address = "127.0.0.1:8081"
+compute_drivers = ["docker"]
+disable_tls = true
+log_level = "info"
+
+[openshell.drivers.docker]
+socket_path = "/var/run/docker.sock"
+image_pull_policy = "IfNotPresent"
+supervisor_image = "ghcr.io/nvidia/openshell/supervisor:latest"
+sandbox_namespace = "deep-research"
+grpc_endpoint = "http://host.openshell.internal:8080"
