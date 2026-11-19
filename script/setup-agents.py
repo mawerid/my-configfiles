@@ -2,16 +2,17 @@
 import argparse
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = {"codex": "config.toml", "claude": "settings.json"}
 LEGACY = {"codex": (), "claude": ("repo-managed-permissions.json",)}
 
 
-def backup(path):
-    destination = path.with_name(f".{path.name}.bak.{uuid4().hex}")
+def backup(path, folder):
+    destination = folder / path.relative_to(path.anchor)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     path.rename(destination)
     return destination
 
@@ -31,6 +32,8 @@ def install(tool, target, *, skills_dir=None):
         if source.is_file() and not source.name.startswith("."):
             links[str(source.relative_to(native))] = source
 
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    backups = target / ".setup-backups" / stamp
     pending = []
     for relative, source in links.items():
         path = target / relative
@@ -45,7 +48,7 @@ def install(tool, target, *, skills_dir=None):
             pending.append((path, source))
     for path, source in pending:
         path.parent.mkdir(parents=True, exist_ok=True)
-        moved = backup(path) if os.path.lexists(path) else None
+        moved = backup(path, backups) if os.path.lexists(path) else None
         try:
             path.symlink_to(source, target_is_directory=source.is_dir())
         except OSError:
@@ -56,7 +59,7 @@ def install(tool, target, *, skills_dir=None):
             print(f"Backed up {path} to {moved}")
     for path in legacy:
         if os.path.lexists(path) and not path.is_symlink():
-            print(f"Moved legacy {path} to {backup(path)}")
+            print(f"Moved legacy {path} to {backup(path, backups)}")
     (native / SETTINGS[tool]).chmod(0o600)
     print(f"Installed {tool} configuration to {target} ({len(pending)} links changed)")
 

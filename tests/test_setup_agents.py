@@ -24,6 +24,10 @@ class InstallerTests(unittest.TestCase):
         self.target = Path(self.workspace.name) / "target"
         self.target.mkdir()
 
+    def backups(self, relative):
+        path = (self.target / relative).relative_to("/")
+        return list(self.target.glob(f".setup-backups/*/{path}"))
+
     def install(self, tool):
         with contextlib.redirect_stdout(io.StringIO()):
             setup.install(tool, self.target)
@@ -86,9 +90,9 @@ class InstallerTests(unittest.TestCase):
         self.install("claude")
         self.assertTrue(config.samefile(ROOT / "agents/claude/settings.json"))
         self.assertTrue(instructions.samefile(ROOT / "agents/AGENTS.md"))
-        (backup,) = self.target.glob(".settings.json.bak.*")
+        (backup,) = self.backups("settings.json")
         self.assertEqual(backup.read_text(), '{"hooks": {}}')
-        (backup,) = self.target.glob(".CLAUDE.md.bak.*")
+        (backup,) = self.backups("CLAUDE.md")
         self.assertEqual(backup.readlink(), Path("missing"))
 
     def test_upgrade_managed_directory(self):
@@ -96,7 +100,12 @@ class InstallerTests(unittest.TestCase):
         shutil.copytree(ROOT / "agents/skills/debug", skill)
         self.install("codex")
         self.assertTrue(skill.is_symlink())
-        self.assertTrue(list(skill.parent.glob(".debug.bak.*")))
+        (backup,) = self.backups("skills/debug")
+        self.assertTrue((backup / "SKILL.md").is_file())
+        self.assertEqual(
+            sorted(p.name for p in skill.parent.iterdir()),
+            sorted(p.name for p in (ROOT / "agents/skills").iterdir()),
+        )
 
     def test_moves_legacy_copies_aside(self):
         legacy_skill = self.target / "skills/debug"
@@ -108,13 +117,14 @@ class InstallerTests(unittest.TestCase):
                 "codex", self.target, skills_dir=self.target / "shared-skills"
             )
         self.assertFalse(os.path.lexists(legacy_skill))
-        self.assertTrue(list(legacy_skill.parent.glob(".debug.bak.*")))
+        self.assertTrue(self.backups("skills/debug"))
+        self.assertFalse(list(legacy_skill.parent.glob(".*")))
         self.assertTrue(personal.is_dir())
         manifest = self.target / "repo-managed-permissions.json"
         manifest.write_text("{}")
         self.install("claude")
         self.assertFalse(manifest.exists())
-        self.assertTrue(list(self.target.glob(".repo-managed-permissions.json.bak.*")))
+        self.assertTrue(self.backups("repo-managed-permissions.json"))
 
     def test_managed_settings_are_private(self):
         for tool, filename in (("codex", "config.toml"), ("claude", "settings.json")):

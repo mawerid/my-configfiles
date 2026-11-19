@@ -22,15 +22,17 @@ bash setup-codex.sh
 The checkout’s `agents/` directory owns global instructions, shared skills and
 tool-specific settings and roles. Setup links the managed entries individually.
 Keep the checkout in place. Edits through these links also edit the checkout.
-Setup moves each existing managed entry to a sibling backup named
-`.<name>.bak.<id>` before linking it. Repeat runs skip installed links. Run setup again
+Setup moves each replaced entry into
+`<config dir>/.setup-backups/<UTC timestamp>/<original absolute path>`
+before linking it, outside the folders the CLIs scan for skills and roles.
+Repeat runs skip installed links. Run setup again
 after adding a skill or role.
 
 Because the installed settings are links, settings changes the CLIs save
 (for example Codex project trust or Claude `/config` changes) land in
 `agents/`. Run `git diff agents/` before committing and keep machine-specific
 or private entries out of the repository. To restore earlier personal
-settings, copy them from the `.<name>.bak.<id>` backup into the managed file.
+settings, copy them from that run's backup into the managed file.
 
 ## Global workflows
 
