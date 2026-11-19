@@ -14,7 +14,8 @@ Independent code review. Validate the implementation against requirements withou
 3. **Check plan adherence** — does the diff match what was planned? Flag any undeclared changes.
 4. **Check correctness** — does the implementation actually do what the requirement says?
 5. **Check invariants** — are all stated invariants preserved?
-6. **Filter by confidence** — only report findings you are ≥80% confident are real issues.
+6. **Check security and privacy** — secret or credential exposure, unsafe shell-out or injection, filesystem boundary violations, overbroad permissions, network or data exfiltration paths, destructive defaults.
+7. **Filter by confidence** — only report findings you are ≥80% confident are real issues.
 
 ## Findings format
 

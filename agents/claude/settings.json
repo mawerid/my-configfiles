@@ -4,7 +4,8 @@
         "DISABLE_ERROR_REPORTING": "1",
         "DISABLE_FEEDBACK_COMMAND": "1",
         "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
-        "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+        "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
     },
     "permissions": {
         "allow": [
@@ -45,7 +46,30 @@
             "Read(//**/*.pfx)",
             "Read(//**/*.sqlite)",
             "Read(//**/*.db)",
-            "Read(//**/*.kdbx)"
+            "Read(//**/*.kdbx)",
+            "Read(//**/id_rsa*)",
+            "Read(//**/id_ecdsa*)",
+            "Read(//**/id_ed25519*)",
+            "Read(~/.ssh/**)",
+            "Read(~/.aws/**)",
+            "Read(~/.gnupg/**)",
+            "Read(~/.kube/**)",
+            "Read(~/.docker/config.json)",
+            "Read(~/.netrc)",
+            "Read(~/.pypirc)",
+            "Read(~/.config/gh/**)",
+            "Read(~/.config/glab-cli/**)"
+        ]
+    },
+    "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "autoAllowBashIfSandboxed": false,
+        "allowUnsandboxedCommands": false,
+        "excludedCommands": [
+            "glab *",
+            "docker *",
+            "python3 *mr_workflow.py *"
         ]
     },
     "skillOverrides": {

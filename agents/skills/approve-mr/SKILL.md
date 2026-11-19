@@ -21,7 +21,7 @@ Read [shared mechanics](../create-mr/mr-workflow.md) and
    blocking findings or unresolved discussions may remain. Do not resolve
    them merely to approve. A draft MR cannot be approved. An existing head
    pipeline must belong to this SHA and have succeeded; no pipeline is
-   explicitly absent and requires sufficient independent checks. Publishing
+   explicitly absent and requires sufficient independent checks.
    Publication CI alone cannot verify runtime behavior; unrun mandatory external integration acceptance blocks
    approval of claims that depend on it.
 3. Prepare the shared review report and run `approve --input FILE --publish`

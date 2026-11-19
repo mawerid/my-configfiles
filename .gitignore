@@ -1,2 +1,2 @@
 .openshell-runtime/
-other
+__pycache__/

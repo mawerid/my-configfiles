@@ -26,6 +26,12 @@ Setup moves each existing managed entry to a sibling backup named
 `.<name>.bak.<id>` before linking it. Repeat runs skip installed links. Run setup again
 after adding a skill or role.
 
+Because the installed settings are links, settings changes the CLIs save
+(for example Codex project trust or Claude `/config` changes) land in
+`agents/`. Run `git diff agents/` before committing and keep machine-specific
+or private entries out of the repository. To restore earlier personal
+settings, copy them from the `.<name>.bak.<id>` backup into the managed file.
+
 ## Global workflows
 
 Codex discovers user skills in `~/.agents/skills`. Claude discovers them in

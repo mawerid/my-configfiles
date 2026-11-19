@@ -98,6 +98,30 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue(skill.is_symlink())
         self.assertTrue(list(skill.parent.glob(".debug.bak.*")))
 
+    def test_moves_legacy_copies_aside(self):
+        legacy_skill = self.target / "skills/debug"
+        shutil.copytree(ROOT / "agents/skills/debug", legacy_skill)
+        personal = self.target / "skills/personal"
+        personal.mkdir()
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup.install(
+                "codex", self.target, skills_dir=self.target / "shared-skills"
+            )
+        self.assertFalse(os.path.lexists(legacy_skill))
+        self.assertTrue(list(legacy_skill.parent.glob(".debug.bak.*")))
+        self.assertTrue(personal.is_dir())
+        manifest = self.target / "repo-managed-permissions.json"
+        manifest.write_text("{}")
+        self.install("claude")
+        self.assertFalse(manifest.exists())
+        self.assertTrue(list(self.target.glob(".repo-managed-permissions.json.bak.*")))
+
+    def test_managed_settings_are_private(self):
+        for tool, filename in (("codex", "config.toml"), ("claude", "settings.json")):
+            self.install(tool)
+            mode = (ROOT / "agents" / tool / filename).stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
+
     @unittest.skipUnless(shutil.which("codex"), "Codex CLI is not installed")
     def test_codex_cli_loads_installed_configuration(self):
         self.install("codex")

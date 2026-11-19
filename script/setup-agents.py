@@ -6,6 +6,14 @@ from pathlib import Path
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
+SETTINGS = {"codex": "config.toml", "claude": "settings.json"}
+LEGACY = {"codex": (), "claude": ("repo-managed-permissions.json",)}
+
+
+def backup(path):
+    destination = path.with_name(f".{path.name}.bak.{uuid4().hex}")
+    path.rename(destination)
+    return destination
 
 
 def install(tool, target, *, skills_dir=None):
@@ -13,9 +21,12 @@ def install(tool, target, *, skills_dir=None):
     native = root / tool
     instruction = "AGENTS.md" if tool == "codex" else "CLAUDE.md"
     links = {instruction: root / "AGENTS.md"}
+    legacy = [target / name for name in LEGACY[tool]]
     for skill in sorted((root / "skills").iterdir()):
         if (skill / "SKILL.md").is_file():
             links[(skills_dir or target / "skills") / skill.name] = skill
+            if skills_dir is not None and skills_dir != target / "skills":
+                legacy.append(target / "skills" / skill.name)
     for source in sorted(native.rglob("*")):
         if source.is_file() and not source.name.startswith("."):
             links[str(source.relative_to(native))] = source
@@ -34,16 +45,19 @@ def install(tool, target, *, skills_dir=None):
             pending.append((path, source))
     for path, source in pending:
         path.parent.mkdir(parents=True, exist_ok=True)
-        backup = None
-        if os.path.lexists(path):
-            backup = path.with_name(f".{path.name}.bak.{uuid4().hex}")
-            path.rename(backup)
+        moved = backup(path) if os.path.lexists(path) else None
         try:
             path.symlink_to(source, target_is_directory=source.is_dir())
         except OSError:
-            if backup is not None and not os.path.lexists(path):
-                backup.rename(path)
+            if moved is not None and not os.path.lexists(path):
+                moved.rename(path)
             raise
+        if moved is not None:
+            print(f"Backed up {path} to {moved}")
+    for path in legacy:
+        if os.path.lexists(path) and not path.is_symlink():
+            print(f"Moved legacy {path} to {backup(path)}")
+    (native / SETTINGS[tool]).chmod(0o600)
     print(f"Installed {tool} configuration to {target} ({len(pending)} links changed)")
 
 
