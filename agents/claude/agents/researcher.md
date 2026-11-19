@@ -5,6 +5,7 @@ model: opus
 effort: medium
 tools: Read, Glob, Grep, WebFetch, WebSearch
 permissionMode: default
+skills: research
 ---
 
 Use the installed research skill for the researcher workflow. Follow project instructions and the approved scope.

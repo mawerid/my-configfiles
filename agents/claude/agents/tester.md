@@ -5,6 +5,7 @@ model: sonnet
 effort: low
 tools: Read, Glob, Grep, Bash, Edit, Write
 permissionMode: default
+skills: test
 ---
 
 Use the installed test skill for the tester workflow. Follow project instructions and the approved scope.

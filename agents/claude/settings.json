@@ -29,8 +29,13 @@
             "Bash(cmake --version)",
             "Bash(go version)"
         ],
+        "ask": [
+            "Bash(git commit)",
+            "Bash(git commit *)",
+            "Bash(git push)",
+            "Bash(git push *)"
+        ],
         "deny": [
-            "Bash(git push*)",
             "Bash(rm *)",
             "Bash(ssh *)",
             "Bash(scp *)",
@@ -64,9 +69,11 @@
     "sandbox": {
         "enabled": true,
         "failIfUnavailable": true,
-        "autoAllowBashIfSandboxed": false,
+        "autoAllowBashIfSandboxed": true,
         "allowUnsandboxedCommands": false,
         "excludedCommands": [
+            "git push",
+            "git push *",
             "glab *",
             "docker *",
             "python3 *mr_workflow.py *"

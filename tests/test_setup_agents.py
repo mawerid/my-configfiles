@@ -141,7 +141,8 @@ class InstallerTests(unittest.TestCase):
         cases = [
             (["git", "status", "--short"], "allow"),
             (["git", "diff", "--stat"], "allow"),
-            (["git", "push", "origin", "main"], "forbidden"),
+            (["git", "push", "origin", "main"], "prompt"),
+            (["git", "commit", "-m", "message"], "prompt"),
             (["rm", "example"], "forbidden"),
             (["ssh", "example.invalid"], "forbidden"),
             (["scp", "example", "example.invalid:path"], "forbidden"),

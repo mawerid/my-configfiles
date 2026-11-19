@@ -5,6 +5,7 @@ model: opus
 effort: medium
 tools: Read, Glob, Grep
 permissionMode: default
+skills: design, plan
 ---
 
 Use the installed design and plan skills for the planner workflow. Follow project instructions and the approved scope.

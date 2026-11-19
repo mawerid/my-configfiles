@@ -5,6 +5,7 @@ model: sonnet
 effort: low
 tools: Read, Glob, Grep, Bash, Edit, Write
 permissionMode: default
+skills: execute
 ---
 
 Use the installed execute skill for the implementer workflow. Follow project instructions and the approved scope.
