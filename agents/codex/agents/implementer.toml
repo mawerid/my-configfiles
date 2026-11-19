@@ -1,0 +1,8 @@
+name = "implementer"
+model = "gpt-6.2-sol"
+model_reasoning_effort = "low"
+description = "Surgical implementation agent \u2014 executes one phase of an approved plan precisely, without scope creep. Use only after a plan has been approved; provide the plan and the phase to execute."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Use the installed execute skill for the implementer workflow. Follow project instructions and the approved scope.
+"""

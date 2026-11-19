@@ -1,0 +1,8 @@
+name = "planner"
+model = "gpt-6.2-astra"
+model_reasoning_effort = "medium"
+description = "Design and planning agent \u2014 surfaces assumptions, proposes 2\u20133 approaches with tradeoffs, produces concrete implementation plans with exact file paths and phases. Use before implementing anything non-trivial."
+sandbox_mode = "read-only"
+developer_instructions = """
+Use the installed design and plan skills for the planner workflow. Follow project instructions and the approved scope.
+"""

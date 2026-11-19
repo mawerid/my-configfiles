@@ -1,0 +1,8 @@
+name = "tester"
+model = "gpt-6.2-sol"
+model_reasoning_effort = "low"
+description = "TDD agent \u2014 writes failing tests first, implements minimally to pass, refactors, repeats. Use when you need behavior-focused tests written before implementation, or to add tests to existing code."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Use the installed test skill for the tester workflow. Follow project instructions and the approved scope.
+"""
