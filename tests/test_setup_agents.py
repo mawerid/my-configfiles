@@ -1,5 +1,4 @@
 import contextlib
-import datetime
 import importlib.util
 import io
 import json
@@ -7,7 +6,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 
@@ -30,247 +28,99 @@ class InstallerTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             setup.install(tool, self.target)
 
-    def test_codex_preserves_customization_and_repeat_install_is_unchanged(self):
-        config = self.target / "config.toml"
-        config.write_text(
-            'model = "chosen-model"\ndeveloper_instructions = "Keep my convention."\n'
-            '[mcp_servers.local]\ncommand = "my-server"\n'
-            '[execpolicy]\nuser_rules = ["~/.codex/execpolicy/default.rules"]\n'
-            "[features]\nexec_permission_approvals = true\n"
+    def test_shared_skills_and_repeat_install(self):
+        for tool in ("codex", "claude"):
+            target = self.target / tool
+            personal = target / "skills/personal"
+            personal.mkdir(parents=True)
+            setup.install(tool, target)
+            skill = target / "skills/handoff"
+            self.assertTrue(skill.samefile(ROOT / "agents/skills/handoff"))
+            inode = skill.lstat().st_ino
+            setup.install(tool, target)
+            self.assertEqual(skill.lstat().st_ino, inode)
+            self.assertTrue(personal.is_dir())
+
+    def test_default_skill_discovery_for_both_tools(self):
+        names = set(
+            "idea plan work retire-plan close-cycle next handoff wait-what retro "
+            "refactor-review create-mr review-mr respond-mr approve-mr release".split()
         )
-        for relative in (
-            "skills/personal/SKILL.md",
-            "agents/personal.toml",
-            "rules/default.rules",
-        ):
-            path = self.target / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("personal content")
-        (self.target / "AGENTS.md").write_text("My own instructions.\n")
-        self.install("codex")
-        data = tomllib.loads(config.read_text())
-        self.assertEqual(data["model"], "chosen-model")
-        self.assertEqual(data["mcp_servers"]["local"]["command"], "my-server")
-        self.assertIn("Keep my convention.", data["developer_instructions"])
-        self.assertNotIn("execpolicy", data)
-        self.assertNotIn("features", data)
-        self.assertIn("My own instructions.", (self.target / "AGENTS.md").read_text())
-        for relative in (
-            "skills/personal/SKILL.md",
-            "agents/personal.toml",
-            "rules/default.rules",
-        ):
-            self.assertEqual((self.target / relative).read_text(), "personal content")
-        for path in (self.target / "agents").glob("*.toml"):
-            if path.name != "personal.toml":
-                agent = tomllib.loads(path.read_text())
+        for tool in ("codex", "claude"):
+            config = self.target / f".{tool}"
+            folder = (self.target / ".agents" if tool == "codex" else config) / "skills"
+            env = dict(os.environ, HOME=str(self.target))
+            env.pop("CODEX_HOME", None)
+            env.pop("CLAUDE_CONFIG_DIR", None)
+            subprocess.run(
+                ["bash", str(ROOT / f"setup-{tool}.sh")],
+                env=env,
+                check=True,
+                capture_output=True,
+            )
+            for name in names:
                 self.assertTrue(
-                    all(
-                        agent[key]
-                        for key in ("name", "description", "developer_instructions")
+                    (folder / name / "SKILL.md").samefile(
+                        ROOT / "agents/skills" / name / "SKILL.md"
                     )
                 )
-        before = {
-            p.relative_to(self.target): p.read_bytes()
-            for p in self.target.rglob("*")
-            if p.is_file()
-        }
+            for resource in (
+                "work/tiers.md",
+                "create-mr/mr_workflow.py",
+                "create-mr/mr-workflow.md",
+                "retro/session-digest",
+                "refactor-review/scripts/duplicates.py",
+            ):
+                self.assertTrue((folder / resource).is_file())
+            if tool == "claude":
+                settings = json.loads((config / "settings.json").read_text())
+                self.assertTrue(
+                    all(settings["skillOverrides"][name] == "on" for name in names)
+                )
+
+    def test_replaces_settings_and_dangling_link_with_backups(self):
+        config = self.target / "settings.json"
+        config.write_text('{"hooks": {}}')
+        instructions = self.target / "CLAUDE.md"
+        instructions.symlink_to("missing")
+        self.install("claude")
+        self.assertTrue(config.samefile(ROOT / "agents/claude/settings.json"))
+        self.assertTrue(instructions.samefile(ROOT / "agents/AGENTS.md"))
+        (backup,) = self.target.glob(".settings.json.bak.*")
+        self.assertEqual(backup.read_text(), '{"hooks": {}}')
+        (backup,) = self.target.glob(".CLAUDE.md.bak.*")
+        self.assertEqual(backup.readlink(), Path("missing"))
+
+    def test_upgrade_managed_directory(self):
+        skill = self.target / "skills/debug"
+        shutil.copytree(ROOT / "agents/skills/debug", skill)
         self.install("codex")
-        after = {
-            p.relative_to(self.target): p.read_bytes()
-            for p in self.target.rglob("*")
-            if p.is_file()
-        }
-        self.assertEqual(before, after)
-        self.assertTrue(list(self.target.glob("config.toml.bak.*")))
+        self.assertTrue(skill.is_symlink())
+        self.assertTrue(list(skill.parent.glob(".debug.bak.*")))
 
-    def test_claude_merges_permissions_and_preserves_hooks(self):
-        original = {
-            "permissions": {"allow": ["Bash(my-test)"], "deny": ["Read(private/**)"]},
-            "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "my-hook"}]}]},
-        }
-        config = self.target / "settings.json"
-        config.write_text(json.dumps(original))
-        self.install("claude")
-        data = json.loads(config.read_text())
-        self.assertEqual(data["hooks"], original["hooks"])
-        self.assertIn("Bash(my-test)", data["permissions"]["allow"])
-        self.assertIn("Read(private/**)", data["permissions"]["deny"])
-        self.assertIn("Read(//**/.env)", data["permissions"]["deny"])
-        before = config.read_bytes()
-        self.install("claude")
-        self.assertEqual(config.read_bytes(), before)
-        self.assertEqual(len(list(self.target.glob("settings.json.bak.*"))), 1)
-
-    def test_malformed_settings_fail_before_writes(self):
-        config = self.target / "settings.json"
-        config.write_text("invalid json")
-        with self.assertRaises(ValueError):
-            self.install("claude")
-        self.assertEqual(list(self.target.iterdir()), [config])
-        self.assertEqual(config.read_text(), "invalid json")
-
-    def test_codex_install_disables_existing_telemetry_exporters(self):
-        config = self.target / "config.toml"
-        config.write_text(
-            "[analytics]\nenabled = true\n[feedback]\nenabled = true\n"
-            '[otel]\nlog_user_prompt = true\nmetrics_exporter = "statsig"\n'
-            '[otel.exporter.otlp-http]\nendpoint = "https://example.invalid/logs"\n'
-            '[otel.trace_exporter.otlp-http]\nendpoint = "https://example.invalid/traces"\n'
-        )
-        self.install("codex")
-        data = tomllib.loads(config.read_text())
-        self.assertFalse(data["analytics"]["enabled"])
-        self.assertFalse(data["feedback"]["enabled"])
-        self.assertEqual(
-            data["otel"],
-            {
-                "exporter": "none",
-                "trace_exporter": "none",
-                "metrics_exporter": "none",
-                "log_user_prompt": False,
-            },
-        )
-
-    def test_claude_install_disables_reporting_and_preserves_other_environment(self):
-        config = self.target / "settings.json"
-        config.write_text(
-            json.dumps(
-                {
-                    "env": {
-                        "DISABLE_TELEMETRY": "0",
-                        "DISABLE_ERROR_REPORTING": "0",
-                        "DISABLE_FEEDBACK_COMMAND": "0",
-                        "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "0",
-                        "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-                        "EDITOR": "vim",
-                    }
-                }
+    def test_moves_legacy_copies_aside(self):
+        legacy_skill = self.target / "skills/debug"
+        shutil.copytree(ROOT / "agents/skills/debug", legacy_skill)
+        personal = self.target / "skills/personal"
+        personal.mkdir()
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup.install(
+                "codex", self.target, skills_dir=self.target / "shared-skills"
             )
-        )
-        self.install("claude")
-        environment = json.loads(config.read_text())["env"]
-        self.assertEqual(
-            environment,
-            {
-                "DISABLE_TELEMETRY": "1",
-                "DISABLE_ERROR_REPORTING": "1",
-                "DISABLE_FEEDBACK_COMMAND": "1",
-                "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
-                "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
-                "EDITOR": "vim",
-            },
-        )
-
-    def test_claude_removes_obsolete_owned_permissions_and_preserves_personal(self):
-        config = self.target / "settings.json"
-        config.write_text(
-            json.dumps(
-                {
-                    "permissions": {
-                        "allow": ["Bash(old-managed)", "Bash(personal)"],
-                        "ask": ["Bash(old-ask)", "Bash(personal-ask)"],
-                        "deny": ["Read(old-managed/**)", "Read(personal/**)"],
-                    }
-                }
-            )
-        )
-        (self.target / "repo-managed-permissions.json").write_text(
-            json.dumps(
-                {
-                    "allow": ["Bash(old-managed)"],
-                    "ask": ["Bash(old-ask)"],
-                    "deny": ["Read(old-managed/**)"],
-                }
-            )
-        )
-        self.install("claude")
-        permissions = json.loads(config.read_text())["permissions"]
-        self.assertNotIn("Bash(old-managed)", permissions["allow"])
-        self.assertNotIn("Read(old-managed/**)", permissions["deny"])
-        self.assertIn("Bash(personal)", permissions["allow"])
-        self.assertIn("Read(personal/**)", permissions["deny"])
-        self.assertEqual(permissions["ask"], ["Bash(personal-ask)"])
-
-    def test_claude_tracks_only_added_permissions_and_repeat_install_is_unchanged(self):
-        config = self.target / "settings.json"
-        config.write_text(
-            json.dumps({"permissions": {"allow": ["Bash(pwd)", "Bash(legacy)"]}})
-        )
-        self.install("claude")
+        self.assertFalse(os.path.lexists(legacy_skill))
+        self.assertTrue(list(legacy_skill.parent.glob(".debug.bak.*")))
+        self.assertTrue(personal.is_dir())
         manifest = self.target / "repo-managed-permissions.json"
-        owned = json.loads(manifest.read_text())
-        self.assertNotIn("Bash(pwd)", owned["allow"])
-        self.assertNotIn("Bash(legacy)", owned["allow"])
-        self.assertIn("Bash(ls)", owned["allow"])
-        self.assertIn(
-            "Bash(legacy)", json.loads(config.read_text())["permissions"]["allow"]
-        )
-        before = {
-            p.relative_to(self.target): p.read_bytes()
-            for p in self.target.rglob("*")
-            if p.is_file()
-        }
+        manifest.write_text("{}")
         self.install("claude")
-        after = {
-            p.relative_to(self.target): p.read_bytes()
-            for p in self.target.rglob("*")
-            if p.is_file()
-        }
-        self.assertEqual(before, after)
+        self.assertFalse(manifest.exists())
+        self.assertTrue(list(self.target.glob(".repo-managed-permissions.json.bak.*")))
 
-    def test_invalid_permission_manifest_fails_before_writes(self):
-        manifest = self.target / "repo-managed-permissions.json"
-        for content in (
-            "invalid json",
-            "[]",
-            '{"allow": "Bash(pwd)"}',
-            '{"deny": [1]}',
-        ):
-            with self.subTest(content=content):
-                manifest.write_text(content)
-                with self.assertRaises(ValueError):
-                    self.install("claude")
-                self.assertEqual(list(self.target.iterdir()), [manifest])
-                self.assertEqual(manifest.read_text(), content)
-
-    def test_symlinked_permission_manifest_is_rejected_before_writes(self):
-        original = Path(self.workspace.name) / "original.json"
-        original.write_text("{}")
-        (self.target / "repo-managed-permissions.json").symlink_to(original)
-        with self.assertRaisesRegex(ValueError, "symlink"):
-            self.install("claude")
-        self.assertFalse((self.target / "settings.json").exists())
-        self.assertEqual(original.read_text(), "{}")
-
-    def test_symlinked_destination_is_rejected_before_writes(self):
-        outside = Path(self.workspace.name) / "elsewhere"
-        outside.mkdir()
-        (self.target / "agents").symlink_to(outside, target_is_directory=True)
-        with self.assertRaisesRegex(ValueError, "symlink"):
-            self.install("codex")
-        self.assertEqual(list(outside.iterdir()), [])
-        self.assertFalse((self.target / "config.toml").exists())
-
-    def test_toml_round_trip_preserves_nested_types(self):
-        data = {
-            "quoted.key": {
-                "text": 'line one\n"line two"\\path',
-                "nested": [{"a": True}, {"b": [1, 2.5]}],
-            },
-            "date": datetime.date(2026, 9, 6),
-            "time": datetime.time(12, 30),
-            "timestamp": datetime.datetime(2026, 9, 6, tzinfo=datetime.timezone.utc),
-        }
-        self.assertEqual(tomllib.loads(setup.toml_text(data)), data)
-
-    def test_instruction_update_preserves_surrounding_content(self):
-        original = f"Personal prefix\n{setup.BEGIN}\nOld managed text\n{setup.END}\nPersonal suffix\n"
-        updated = setup.instructions(original, "New managed text")
-        self.assertIn("Personal prefix", updated)
-        self.assertIn("Personal suffix", updated)
-        self.assertNotIn("Old managed text", updated)
-        self.assertEqual(setup.instructions(updated, "New managed text"), updated)
+    def test_managed_settings_are_private(self):
+        for tool, filename in (("codex", "config.toml"), ("claude", "settings.json")):
+            self.install(tool)
+            mode = (ROOT / "agents" / tool / filename).stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
 
     @unittest.skipUnless(shutil.which("codex"), "Codex CLI is not installed")
     def test_codex_cli_loads_installed_configuration(self):
@@ -291,7 +141,8 @@ class InstallerTests(unittest.TestCase):
         cases = [
             (["git", "status", "--short"], "allow"),
             (["git", "diff", "--stat"], "allow"),
-            (["git", "push", "origin", "main"], "forbidden"),
+            (["git", "push", "origin", "main"], "prompt"),
+            (["git", "commit", "-m", "message"], "prompt"),
             (["rm", "example"], "forbidden"),
             (["ssh", "example.invalid"], "forbidden"),
             (["scp", "example", "example.invalid:path"], "forbidden"),

@@ -1,0 +1,26 @@
+approval_policy = "on-request"
+approvals_reviewer = "user"
+sandbox_mode = "workspace-write"
+developer_instructions = """
+- Default to asking before non-trusted commands or sensitive operations.
+- Do not read .env, .env.*, *.env, *.env.*, *.pem, *.key, *.p12, *.crt, *.der, *.pfx, *.sqlite, *.db, or *.kdbx files unless the user explicitly asks.
+- Do not read SSH keys (id_rsa*, id_ecdsa*, id_ed25519*) or credential stores (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.docker/config.json, ~/.netrc, ~/.pypirc, ~/.config/gh, ~/.config/glab-cli) unless the user explicitly asks.
+"""
+
+[sandbox_workspace_write]
+network_access = false
+
+[analytics]
+enabled = false
+
+[feedback]
+enabled = false
+
+[otel]
+exporter = "none"
+metrics_exporter = "none"
+trace_exporter = "none"
+log_user_prompt = false
+
+[features]
+multi_agent_v2 = true
