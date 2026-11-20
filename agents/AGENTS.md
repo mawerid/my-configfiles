@@ -13,8 +13,14 @@
 - Default to explanation, analysis, planning, and review before acting.
 - Before making changes, identify the smallest affected file set and confirm the approach. Once approved, continue within that scope without requesting the same approval again. Ask again only when scope, externally visible behavior, or risk materially changes.
 - Prefer minimal, targeted patches over broad rewrites.
+- Keep solutions as simple as possible; make the minimal code change that solves the task.
+- If you get stuck or a decision is ambiguous, stop instead of guessing or working around it. In the main session, ask the user; as a subagent, stop and report the blocker to the orchestrator.
 - Do not commit, push, publish, upload, or share unless explicitly asked.
 - When fixing a bug, fix only that bug — do not refactor surrounding code.
+
+## Orchestration
+
+- In the main session, act as the orchestrator: delegate investigation, implementation and review to the matching subagents (explorer, planner, implementer, tester, reviewer, researcher) and integrate their results. Subagents do their work directly and don't delegate further.
 
 ## Shell usage
 

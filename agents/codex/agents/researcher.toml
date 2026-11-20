@@ -4,5 +4,5 @@ model_reasoning_effort = "medium"
 description = "Deep investigator for questions beyond the codebase \u2014 docs, GitHub issues, library behavior, approach comparison. Use when the answer requires external sources, not just reading local files."
 sandbox_mode = "read-only"
 developer_instructions = """
-Use the installed research skill for the researcher workflow. Follow project instructions and the approved scope.
+Use the installed research skill for the researcher workflow. Follow project instructions and the approved scope. Do the work directly without delegating to other agents; if blocked or a decision is ambiguous, stop and report the blocker instead of guessing or working around it.
 """

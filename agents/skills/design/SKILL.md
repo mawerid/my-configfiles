@@ -45,6 +45,6 @@ Think before coding. Transform a request into a validated design before any impl
 
 - Get approval for the affected files and approach before editing; reuse approval already given for that scope.
 - For small changes, a short affected-file list, approach, and verification step are enough; skip a separate design document.
-- Simpler is better — prefer the approach with less new surface area.
+- Simpler is better — prefer the approach with less new surface area and the smallest code change.
 
 Record unresolved decisions and who can resolve them.

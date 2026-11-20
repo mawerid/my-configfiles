@@ -11,7 +11,7 @@ Convert an approved design into a concrete, ordered implementation plan. This is
 
 1. **Use the agreed scope** — planning may be part of the initial proposal; no separate design approval is needed to prepare it.
 2. **Enumerate files** — list every file that will be created, modified, or deleted.
-3. **Per-file changes** — for each file: affected symbols or sections, what changes (interface signatures, logic replaced, added functions).
+3. **Per-file changes** — for each file: affected symbols or sections, what changes (interface signatures, logic replaced, added functions). Plan the smallest change that satisfies the design.
 4. **Order phases** — break work into sequential phases where each phase leaves the code in a working state.
 5. **Test strategy** — name the tests that will verify each phase (new tests or existing ones to run).
 6. **State invariants** — copy invariants from the design; add any new ones discovered while planning.
@@ -41,7 +41,7 @@ Tests: <test names or commands>
 
 - Use exact file paths — never "the config file" or "the handler".
 - Run relevant checks for each phase; use the full suite when shared behavior or unresolved risk warrants it.
-- Ask before expanding scope; routine implementation choices within an approved plan need no new approval.
+- Ask before expanding scope or settling an ambiguous decision; routine implementation choices within an approved plan need no new approval.
 - Brevity: small changes ≤ 1 screen, medium ≤ 3 screens.
 
 For each phase, state observable acceptance criteria and identify any documentation affected. Use the project’s existing plan location when a written plan is requested.

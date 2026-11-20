@@ -28,7 +28,7 @@ End every phase with one of:
 
 - `DONE` — phase complete, all tests passing.
 - `DONE_WITH_CONCERNS` — phase complete, tests passing, but something unexpected was found (describe it).
-- `BLOCKED` — cannot proceed without a decision. State exactly what is blocking and what options exist.
+- `BLOCKED` — cannot proceed without a decision. Stop rather than guessing or working around it; state exactly what is blocking and what options exist.
 - `NEEDS_CONTEXT` — missing information to complete the phase. State exactly what is needed.
 
 ## Rules

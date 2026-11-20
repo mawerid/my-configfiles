@@ -28,7 +28,7 @@ Systematic root-cause investigation. Find the real cause before touching any cod
 ### Phase 4 — Fix
 - Only proceed after Phases 1–3 confirm the root cause.
 - Create a failing test that captures the bug before fixing it.
-- Implement the minimal fix.
+- Implement the minimal fix. If it requires a behavior or design choice, stop and ask first.
 - Run affected tests; broaden to the full suite when shared behavior or unresolved risk warrants it. Remove instrumentation.
 - If three fix attempts fail, stop and report findings.
 

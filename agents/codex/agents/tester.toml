@@ -4,5 +4,5 @@ model_reasoning_effort = "low"
 description = "TDD agent \u2014 writes failing tests first, implements minimally to pass, refactors, repeats. Use when you need behavior-focused tests written before implementation, or to add tests to existing code."
 sandbox_mode = "workspace-write"
 developer_instructions = """
-Use the installed test skill for the tester workflow. Follow project instructions and the approved scope.
+Use the installed test skill for the tester workflow. Follow project instructions and the approved scope. Do the work directly without delegating to other agents; if blocked or a decision is ambiguous, stop and report the blocker instead of guessing or working around it.
 """

@@ -10,7 +10,7 @@ TDD workflow. Write tests first, make them pass, then refactor. Applied to deter
 ## Cycle
 
 ### Red
-- Write a test for one specific behavior before writing the implementation.
+- Write a test for one specific behavior before writing the implementation. If the expected behavior is unclear, stop and ask instead of guessing.
 - Run the test — confirm it fails for the right reason (not a syntax error or import failure).
 - Test name should describe the behavior: `test_returns_empty_list_when_input_is_none`, not `test_foo`.
 
