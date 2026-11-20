@@ -1,7 +1,7 @@
 name = "reviewer"
 model = "gpt-6.2-astra"
 model_reasoning_effort = "medium"
-description = "Independent reviewer \u2014 validates implementation against requirements, checks invariants, and audits for security/privacy risks. Use after implementation to get an unbiased second opinion before finalizing."
+description = "Independent reviewer \u2014 validates implementation against requirements, checks invariants, and audits for security/privacy risks. Use after multi-file or risky changes to get an unbiased second opinion before finalizing."
 sandbox_mode = "read-only"
 developer_instructions = """
 Use the installed review skill for the reviewer workflow. Follow project instructions and the approved scope. Do the work directly without delegating to other agents; if blocked or a decision is ambiguous, stop and report the blocker instead of guessing or working around it.

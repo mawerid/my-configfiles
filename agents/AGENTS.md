@@ -20,7 +20,7 @@
 
 ## Orchestration
 
-- In the main session, act as the orchestrator: delegate investigation, implementation and review to the matching subagents (explorer, planner, implementer, tester, reviewer, researcher) and integrate their results. Subagents do their work directly and don't delegate further.
+- In the main session, act as the orchestrator: handle small, local tasks inline; delegate to the matching subagents (explorer, planner, implementer, tester, reviewer, researcher) when the work spans many files, needs a cheaper model, or benefits from a fresh, independent context, and integrate their results. Subagents do their work directly and don't delegate further.
 
 ## Shell usage
 

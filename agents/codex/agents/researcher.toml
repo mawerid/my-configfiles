@@ -1,5 +1,5 @@
 name = "researcher"
-model = "gpt-6.2-astra"
+model = "gpt-6.2-sol"
 model_reasoning_effort = "medium"
 description = "Deep investigator for questions beyond the codebase \u2014 docs, GitHub issues, library behavior, approach comparison. Use when the answer requires external sources, not just reading local files."
 sandbox_mode = "read-only"
