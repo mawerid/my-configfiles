@@ -18,6 +18,15 @@ def backup(path, folder):
 
 
 def install(tool, target, *, skills_dir=None):
+    target = target.resolve()
+    if skills_dir is not None:
+        skills_dir = skills_dir.parent.resolve() / skills_dir.name
+    legacy_skills = target / "skills"
+    migrate_skills = (
+        skills_dir is not None
+        and skills_dir != legacy_skills
+        and not legacy_skills.is_symlink()
+    )
     root = ROOT / "agents"
     native = root / tool
     instruction = "AGENTS.md" if tool == "codex" else "CLAUDE.md"
@@ -25,15 +34,13 @@ def install(tool, target, *, skills_dir=None):
     legacy = [target / name for name in LEGACY[tool]]
     for skill in sorted((root / "skills").iterdir()):
         if (skill / "SKILL.md").is_file():
-            links[(skills_dir or target / "skills") / skill.name] = skill
-            if skills_dir is not None and skills_dir != target / "skills":
-                legacy.append(target / "skills" / skill.name)
+            links[(skills_dir or legacy_skills) / skill.name] = skill
+            if migrate_skills:
+                legacy.append(legacy_skills / skill.name)
     for source in sorted(native.rglob("*")):
         if source.is_file() and not source.name.startswith("."):
             links[str(source.relative_to(native))] = source
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    backups = target / ".setup-backups" / stamp
     pending = []
     for relative, source in links.items():
         path = target / relative
@@ -46,6 +53,17 @@ def install(tool, target, *, skills_dir=None):
             raise ValueError(f"Destination overlaps source: {path}")
         if not path.is_symlink() or path.readlink() != source:
             pending.append((path, source))
+    legacy = [
+        path for path in legacy if os.path.lexists(path) and not path.is_symlink()
+    ]
+    backup_root = target / ".setup-backups"
+    if legacy or any(os.path.lexists(path) for path, _ in pending):
+        if backup_root.is_symlink() or (
+            backup_root.exists() and not backup_root.is_dir()
+        ):
+            raise ValueError(f"Invalid backup directory: {backup_root}")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    backups = backup_root / stamp
     for path, source in pending:
         path.parent.mkdir(parents=True, exist_ok=True)
         moved = backup(path, backups) if os.path.lexists(path) else None
@@ -58,8 +76,7 @@ def install(tool, target, *, skills_dir=None):
         if moved is not None:
             print(f"Backed up {path} to {moved}")
     for path in legacy:
-        if os.path.lexists(path) and not path.is_symlink():
-            print(f"Moved legacy {path} to {backup(path, backups)}")
+        print(f"Moved legacy {path} to {backup(path, backups)}")
     (native / SETTINGS[tool]).chmod(0o600)
     print(f"Installed {tool} configuration to {target} ({len(pending)} links changed)")
 

@@ -1,6 +1,9 @@
 services:
   gateway:
-    image: ghcr.io/nvidia/openshell/gateway:latest
+    image: &gateway-image ghcr.io/nvidia/openshell/gateway:latest
+    depends_on:
+      init:
+        condition: service_completed_successfully
     command: []
     user: "0"
     ports:
@@ -10,13 +13,16 @@ services:
       OPENSHELL_DB_URL: "sqlite:/var/lib/deep-research-gateway-state/gateway.db?mode=rwc"
       XDG_DATA_HOME: "${DEEP_RESEARCH_GATEWAY_DATA}"
       HOME: "${DEEP_RESEARCH_GATEWAY_DATA}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "host.openshell.internal:host-gateway"
     volumes:
       - "${DEEP_RESEARCH_GATEWAY_DATA:?Set an absolute gateway data directory}:${DEEP_RESEARCH_GATEWAY_DATA}"
       - gateway-database:/var/lib/deep-research-gateway-state
       - /var/run/docker.sock:/var/run/docker.sock
       - ./gateway.toml:/etc/openshell/gateway.toml:ro
+  init:
+    image: *gateway-image
+    user: "0"
+    command: ["generate-certs", "--output-dir", "/var/lib/deep-research-gateway-state/tls"]
+    volumes:
+      - gateway-database:/var/lib/deep-research-gateway-state
 volumes:
   gateway-database:

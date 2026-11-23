@@ -126,6 +126,43 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse(manifest.exists())
         self.assertTrue(self.backups("repo-managed-permissions.json"))
 
+    def test_accepts_an_alias_to_the_destination_parent(self):
+        parent = self.target / "configs"
+        parent.mkdir()
+        alias = self.target / "alias"
+        alias.symlink_to(parent, target_is_directory=True)
+        setup.install("claude", alias / "claude")
+        self.assertTrue(
+            (parent / "claude/settings.json").samefile(
+                ROOT / "agents/claude/settings.json"
+            )
+        )
+
+    def test_symlinked_backup_directory_blocks_replacement(self):
+        config = self.target / "settings.json"
+        config.write_text("{}")
+        unrelated = self.target / "unrelated"
+        unrelated.mkdir()
+        (self.target / ".setup-backups").symlink_to(unrelated, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            self.install("claude")
+        self.assertEqual(config.read_text(), "{}")
+        self.assertFalse((self.target / "CLAUDE.md").exists())
+        self.assertEqual(list(unrelated.iterdir()), [])
+
+    def test_symlinked_legacy_skills_directory_is_not_migrated(self):
+        unrelated = self.target / "unrelated"
+        skill = unrelated / "debug"
+        shutil.copytree(ROOT / "agents/skills/debug", skill)
+        legacy = self.target / "skills"
+        legacy.symlink_to(unrelated, target_is_directory=True)
+        shared = self.target / "shared-skills"
+        setup.install("codex", self.target, skills_dir=shared)
+        self.assertTrue(legacy.is_symlink())
+        self.assertTrue((skill / "SKILL.md").is_file())
+        self.assertTrue((shared / "debug").is_symlink())
+        self.assertFalse((self.target / ".setup-backups").exists())
+
     def test_managed_settings_are_private(self):
         for tool, filename in (("codex", "config.toml"), ("claude", "settings.json")):
             self.install(tool)

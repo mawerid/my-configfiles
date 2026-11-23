@@ -6,6 +6,8 @@ developer_instructions = """
 - Do not read .env, .env.*, *.env, *.env.*, *.pem, *.key, *.p12, *.crt, *.der, *.pfx, *.sqlite, *.db, or *.kdbx files unless the user explicitly asks.
 - Do not read SSH keys (id_rsa*, id_ecdsa*, id_ed25519*) or credential stores (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.docker/config.json, ~/.netrc, ~/.pypirc, ~/.config/gh, ~/.config/glab-cli) unless the user explicitly asks.
 """
+model = "gpt-6.2-sol"
+model_reasoning_effort = "medium"
 
 [sandbox_workspace_write]
 network_access = false
@@ -24,3 +26,8 @@ log_user_prompt = false
 
 [features]
 multi_agent_v2 = true
+
+[tui]
+screen_reader_detection_done = true
+status_line = ["model-with-reasoning", "current-dir", "approval-mode", "context-used", "five-hour-limit", "used-tokens"]
+status_line_use_colors = true

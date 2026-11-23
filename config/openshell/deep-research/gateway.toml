@@ -1,16 +1,23 @@
 [openshell]
-version = 1
+version = 2
 
 [openshell.gateway]
-bind_address = "127.0.0.1:8080"
+bind_address = "0.0.0.0:8080"
 health_bind_address = "127.0.0.1:8081"
-compute_drivers = ["docker"]
+compute_driver = "docker"
 disable_tls = true
 log_level = "info"
 
+[openshell.gateway.auth]
+allow_unauthenticated_users = true
+
+[openshell.gateway.gateway_jwt]
+signing_key_path = "/var/lib/deep-research-gateway-state/tls/jwt/signing.pem"
+public_key_path = "/var/lib/deep-research-gateway-state/tls/jwt/public.pem"
+kid_path = "/var/lib/deep-research-gateway-state/tls/jwt/kid"
+gateway_id = "deep-research-local"
+
 [openshell.drivers.docker]
 socket_path = "/var/run/docker.sock"
-image_pull_policy = "IfNotPresent"
-supervisor_image = "ghcr.io/nvidia/openshell/supervisor:latest"
-sandbox_namespace = "deep-research"
-grpc_endpoint = "http://host.openshell.internal:8080"
+image_pull_policy = "if_not_present"
+sandbox_label = "deep-research"

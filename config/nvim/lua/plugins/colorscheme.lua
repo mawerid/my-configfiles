@@ -1,9 +1,9 @@
 return {
   {
     "marko-cerovac/material.nvim",
-    opts = {
-      style = "darker",
-    },
+    init = function()
+      vim.g.material_style = "darker"
+    end,
   },
 
   {

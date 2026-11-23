@@ -1,3 +1,5 @@
+vim.g.maplocalleader = " "
+
 vim.opt.number = true
 vim.opt.relativenumber = false
 
@@ -9,7 +11,6 @@ vim.opt.shiftwidth = 4
 
 vim.opt.foldcolumn = "1"
 vim.opt.mouse = "a"
-vim.opt.clipboard = "unnamedplus"
 
 vim.opt.wrap = false
 vim.opt.scrolloff = 8
