@@ -54,6 +54,39 @@ reinstall.
 Mason installs Pyright when Node.js and npm are available, and gopls when Go
 is available. Neovim can also use an existing language server on `PATH`.
 
+### Install the Nerd Font on Ubuntu
+
+Run these commands on the Ubuntu desktop where you open your terminal.
+
+```bash
+sudo apt update
+sudo apt install -y curl xz-utils fontconfig
+
+(
+  set -eu
+  font_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fonts/JetBrainsMonoNerdFontMono"
+  archive="$(mktemp)"
+  trap 'rm -f "$archive"' EXIT
+
+  curl -fsSL \
+    https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.tar.xz \
+    -o "$archive"
+
+  printf '%s  %s\n' \
+    04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf \
+    "$archive" | sha256sum --check
+
+  mkdir -p "$font_dir"
+  tar -xJf "$archive" -C "$font_dir" \
+    JetBrainsMonoNerdFontMono-{Regular,Bold,Italic,BoldItalic}.ttf
+  fc-cache -f "$font_dir"
+)
+```
+
+Select **JetBrainsMono Nerd Font Mono** in your terminal profile, then open a
+new terminal window and start Neovim. For SSH sessions, select the font on the
+machine displaying the terminal. [Nerd Fonts release](https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.5.1)
+
 ## Herdr desktop app
 
 Install and open the Herdr desktop app once to initialize its layouts. Then run
