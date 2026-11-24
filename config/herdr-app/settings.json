@@ -9,5 +9,6 @@
   "terminal_scroll_speed": 1,
   "minimum_contrast": 1,
   "appearance": "dark",
+  "theme": "atom-one-dark",
   "telemetry": false
 }
