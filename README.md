@@ -37,6 +37,10 @@ and installs the Tree-sitter CLI nightly if the available CLI is older than
 0.26.1 or missing. The binaries are linked into `~/.local/bin`. macOS uses
 Homebrew for Neovim and the Tree-sitter CLI.
 
+The macOS bootstrap also installs JetBrainsMono Nerd Font. To install the font
+by itself, run `brew install --cask font-jetbrains-mono-nerd-font`. Select
+**JetBrainsMono Nerd Font Mono** in your terminal profile to display Neovim icons.
+
 The bootstrap installs Lazygit with Homebrew on macOS or apt on Ubuntu. On
 Ubuntu releases without an apt package, it installs the official binary into
 `~/.local/bin`. In Neovim, `Space g g` opens Lazygit at the Git root, and

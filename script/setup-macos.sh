@@ -15,6 +15,7 @@ fi
 echo "==> Installing packages"
 brew update
 brew install git zsh tmux neovim tree-sitter-cli lazygit ripgrep bat tree
+brew install --cask font-jetbrains-mono-nerd-font
 if ! python3 --version >/dev/null 2>&1; then
   brew install python
 fi
