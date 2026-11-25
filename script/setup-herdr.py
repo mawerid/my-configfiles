@@ -111,19 +111,14 @@ def preview_layout(target):
         return None
     nodes = [layout]
     while nodes:
-        children = nodes.pop().get("children", [])
-        for index, node in enumerate(children):
-            content = node.get("content", {})
-            if node.get("id") == "files" and content.get("mod") == "files":
-                content["mod"] = "files-preview"
-                # The TODO panel joins the same stack, right after Files.
-                todo = json.loads(json.dumps(node))
-                todo["id"], todo["content"]["mod"] = "todo", "todo"
-                children.insert(index + 1, todo)
-                return (json.dumps(layout, ensure_ascii=False, indent=2) + "\n").encode(
-                    "utf-8"
-                )
-        nodes.extend(children)
+        node = nodes.pop()
+        content = node.get("content", {})
+        if node.get("id") == "files" and content.get("mod") == "files":
+            content["mod"] = "files-preview"
+            return (json.dumps(layout, ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            )
+        nodes.extend(node.get("children", []))
     raise ValueError(f"No Files panel found in {source}")
 
 
@@ -133,8 +128,6 @@ def install(target):
         "mods/files-preview/main.js",
         "mods/files-preview/mod.json",
         "mods/files-preview/html_server.py",
-        "mods/todo/main.js",
-        "mods/todo/mod.json",
     ]
     if sys.platform == "darwin":
         paths.extend(("mods/tmux-mode/main.js", "mods/tmux-mode/mod.json"))

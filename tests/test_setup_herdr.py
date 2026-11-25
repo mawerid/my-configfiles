@@ -50,11 +50,7 @@ class HerdrInstallerTests(unittest.TestCase):
         generated = json.loads(preview.read_text())
         self.assertEqual(json.loads(main.read_text()), source)
         self.assertEqual(generated["children"][0]["content"]["mod"], "files-preview")
-        self.assertEqual(
-            generated["children"][1],
-            {"id": "todo", "type": "block", "content": {"mod": "todo"}},
-        )
-        self.assertEqual(generated["children"][2], source["children"][1])
+        self.assertEqual(generated["children"][1], source["children"][1])
         self.assertFalse((self.target / ".setup-backups").exists())
 
         preview.write_text("{}")

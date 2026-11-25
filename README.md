@@ -122,7 +122,7 @@ literal `Ctrl+A` to the terminal, including when you run tmux inside Herdr.
 Keyboard resizing requires Herdr's `pane.resize` command. Herdr reloads its
 config files automatically when they change.
 
-### Files Preview, TODO, HTML and PDF
+### Files Preview, HTML and PDF
 
 After setup, switch to the preview layout.
 
@@ -133,11 +133,6 @@ herdr-app do layout.switch --name files-preview
 Open **Files** and select a Markdown file to switch between **Rendered** and
 **Raw**. The same controls work for local and remote spaces. Files and folders
 show Material icons; git-ignored entries are dimmed.
-
-Select **TODO** in the Files header to list `TODO`, `FIXME`, `HACK`, `XXX` and
-`BUG` comments found by `rg` (it must be installed on the space's machine).
-Click one to open it in Neovim in a pane to the right. Its header links back to
-**Files** and **Changes**.
 
 Click an HTML file in a remote space to open it in your browser. The mod
 starts a small server for the Files folder on that machine (it needs

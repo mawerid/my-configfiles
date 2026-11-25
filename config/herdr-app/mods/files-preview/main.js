@@ -3,7 +3,7 @@
 // A lazy file browser for the focused pane's folder, with bounded read-only previews.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
-import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window, run, layout } from "herdr";
+import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window } from "herdr";
 function location() {
   const space = spaces().find(s => s.active), f = focused();
   const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
@@ -24,9 +24,6 @@ function iconFile(table, name, dir, open) {
   let icon = find("fileNames", lower);
   for (let i = lower.indexOf("."); !icon && i !== -1; i = lower.indexOf(".", i + 1)) icon = find("fileExtensions", lower.slice(i + 1));
   return icon ?? table.file;
-}
-function hasNode(node, id) {
-  return node?.id === id || (node?.children ?? []).some(child => hasNode(child, id));
 }
 
 const IDLE_SECONDS = 300;
@@ -319,8 +316,6 @@ export default class Files extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
-        .when(hasNode(layout(), "todo"), el => el.child(div().id("files-todo-link").cursor_pointer().text_size(12).text_color(t.accent)
-          .on_click(() => run("layout.select", { stack: "panel-body", child: "todo" })).child("TODO")))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
       .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
