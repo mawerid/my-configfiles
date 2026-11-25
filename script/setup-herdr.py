@@ -1,16 +1,103 @@
 #!/usr/bin/env python3
 import argparse
+import base64
+import hashlib
+import io
 import json
 import os
+import re
 import shutil
 import stat
 import sys
+import tarfile
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile, mkdtemp
 
 SOURCE = Path(__file__).resolve().parents[1] / "config/herdr-app"
 PREVIEW_LAYOUT = "layouts/files-preview.json"
+ICONS = "mods/files-preview/icons"
+ICON_PACKAGE = "https://registry.npmjs.org/material-icon-theme/latest"
+ICON_TABLES = ("fileNames", "fileExtensions", "folderNames", "folderNamesExpanded")
+SAFE_ICON = re.compile(r"[a-z0-9][a-z0-9_.-]*\.svg")
+
+
+def fetch(url):
+    with urllib.request.urlopen(url, timeout=60) as response:
+        return response.read()
+
+
+def icon_table(manifest, available):
+    """Map lowercased names to SVG files, dropping icons the package lacks."""
+    files = {
+        name: Path(definition["iconPath"]).name
+        for name, definition in manifest["iconDefinitions"].items()
+    }
+
+    def resolve(tables):
+        table = {}
+        for kind in ICON_TABLES:
+            entries = {}
+            for key, icon in tables.get(kind, {}).items():
+                if files.get(icon) in available:
+                    entries.setdefault(key.lower(), files[icon])
+            table[kind] = entries
+        return table
+
+    table = resolve(manifest)
+    for kind in ("file", "folder", "folderExpanded"):
+        table[kind] = files[manifest[kind]]
+    table["light"] = resolve(manifest.get("light", {}))
+    return table
+
+
+def unpack_icons(archive, integrity, version, staging):
+    algorithm, _, digest = integrity.partition("-")
+    if algorithm != "sha512" or hashlib.sha512(archive).digest() != base64.b64decode(
+        digest
+    ):
+        raise ValueError("material-icon-theme checksum mismatch")
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+        manifest = json.load(tar.extractfile("package/dist/material-icons.json"))
+        (staging / "LICENSE").write_bytes(tar.extractfile("package/LICENSE").read())
+        for member in tar.getmembers():
+            name = member.name.removeprefix("package/icons/")
+            if name != member.name and member.isfile() and SAFE_ICON.fullmatch(name):
+                (staging / name).write_bytes(tar.extractfile(member).read())
+    table = icon_table(manifest, {path.name for path in staging.glob("*.svg")})
+    table["version"] = version
+    (staging / "icons.json").write_text(json.dumps(table), encoding="utf-8")
+
+
+def install_icons(target):
+    destination = target / ICONS
+    if destination.is_symlink():
+        raise ValueError(f"Invalid icon directory: {destination}")
+    package = json.loads(fetch(ICON_PACKAGE))
+    version = package["version"]
+    try:
+        installed = json.loads((destination / "icons.json").read_text(encoding="utf-8"))
+        if installed.get("version") == version:
+            print(f"Material icons {version} are current")
+            return
+    except (FileNotFoundError, ValueError):
+        pass
+    archive = fetch(package["dist"]["tarball"])
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(mkdtemp(prefix=".icons-", dir=destination.parent))
+    try:
+        unpack_icons(archive, package["dist"]["integrity"], version, staging)
+        if destination.exists():
+            old = Path(mkdtemp(prefix=".icons-old-", dir=destination.parent))
+            destination.replace(old / "icons")
+            staging.replace(destination)
+            shutil.rmtree(old)
+        else:
+            staging.replace(destination)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    print(f"Installed material icons {version} to {destination}")
 
 
 def preview_layout(target):
@@ -24,14 +111,19 @@ def preview_layout(target):
         return None
     nodes = [layout]
     while nodes:
-        node = nodes.pop()
-        content = node.get("content", {})
-        if node.get("id") == "files" and content.get("mod") == "files":
-            content["mod"] = "files-preview"
-            return (json.dumps(layout, ensure_ascii=False, indent=2) + "\n").encode(
-                "utf-8"
-            )
-        nodes.extend(node.get("children", []))
+        children = nodes.pop().get("children", [])
+        for index, node in enumerate(children):
+            content = node.get("content", {})
+            if node.get("id") == "files" and content.get("mod") == "files":
+                content["mod"] = "files-preview"
+                # The TODO panel joins the same stack, right after Files.
+                todo = json.loads(json.dumps(node))
+                todo["id"], todo["content"]["mod"] = "todo", "todo"
+                children.insert(index + 1, todo)
+                return (json.dumps(layout, ensure_ascii=False, indent=2) + "\n").encode(
+                    "utf-8"
+                )
+        nodes.extend(children)
     raise ValueError(f"No Files panel found in {source}")
 
 
@@ -40,6 +132,9 @@ def install(target):
         "settings.json",
         "mods/files-preview/main.js",
         "mods/files-preview/mod.json",
+        "mods/files-preview/html_server.py",
+        "mods/todo/main.js",
+        "mods/todo/mod.json",
     ]
     if sys.platform == "darwin":
         paths.extend(("mods/tmux-mode/main.js", "mods/tmux-mode/mod.json"))
@@ -104,6 +199,10 @@ def main():
         install(target)
     except (OSError, ValueError) as error:
         sys.exit(f"Installation failed: {error}")
+    try:
+        install_icons(target)
+    except (OSError, ValueError, KeyError, tarfile.TarError) as error:
+        print(f"Warning: material icons not updated: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":

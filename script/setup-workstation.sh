@@ -30,6 +30,11 @@ install_repo zsh-users/zsh-autosuggestions "$zsh_custom/plugins/zsh-autosuggesti
 install_repo zsh-users/zsh-syntax-highlighting "$zsh_custom/plugins/zsh-syntax-highlighting"
 install_repo tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
 
+echo "==> Installing or upgrading Python tools"
+for tool in ruff pre-commit euporie; do
+  uv tool install --upgrade "$tool"
+done
+
 python3 "$SCRIPT_DIR/install-editor-configs.py" "$HOME/.tmux.conf" "$HOME/.zshrc"
 
 echo "==> Done"

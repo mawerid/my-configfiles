@@ -11,8 +11,10 @@ cd ~/config
 bash install.sh
 ```
 
-`install.sh` selects the macOS or Ubuntu bootstrap. Configure the agents as your
-normal user:
+`install.sh` selects the macOS or Ubuntu bootstrap. Each run also installs or
+upgrades `gh`, `glab`, `lazydocker` and `uv` (apt and checksum-verified GitHub
+releases on Ubuntu, Homebrew on macOS) and, through `uv tool`, `ruff`,
+`pre-commit` and `euporie`. Configure the agents as your normal user:
 
 ```bash
 bash setup-claude.sh
@@ -99,7 +101,10 @@ bash setup-herdr.sh
 Setup copies settings to `~/.config/herdr-app` and installs the checked-in
 keyboard shortcuts on macOS. Set `HERDR_APP_HOME` or pass `--target-dir` to use
 a different app home. Setup derives Files Preview from the installed main
-layout. Changes made in Herdr stay in the app home until you copy them back
+layout. Each run also installs the newest
+[Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme)
+icons (MIT) from npm after checking the published SHA-512; without network it
+keeps the installed icons. Changes made in Herdr stay in the app home until you copy them back
 into `config/herdr-app/`.
 
 On macOS, `Ctrl+A` starts the tmux-style Herdr mode. Press it twice to send a
@@ -117,7 +122,7 @@ literal `Ctrl+A` to the terminal, including when you run tmux inside Herdr.
 Keyboard resizing requires Herdr's `pane.resize` command. Herdr reloads its
 config files automatically when they change.
 
-### Preview Markdown and HTML
+### Files Preview, TODO, HTML and PDF
 
 After setup, switch to the preview layout.
 
@@ -126,34 +131,22 @@ herdr-app do layout.switch --name files-preview
 ```
 
 Open **Files** and select a Markdown file to switch between **Rendered** and
-**Raw**. The same controls work for local and remote spaces.
+**Raw**. The same controls work for local and remote spaces. Files and folders
+show Material icons; git-ignored entries are dimmed.
 
-For remote HTML, serve the directory you want to preview over an SSH local
-forward. For example, run this on the remote machine.
+Select **TODO** in the Files header to list `TODO`, `FIXME`, `HACK`, `XXX` and
+`BUG` comments found by `rg` (it must be installed on the space's machine).
+Click one to open it in Neovim in a pane to the right. Its header links back to
+**Files** and **Changes**.
 
-```bash
-python3 -m http.server 8000 --bind 127.0.0.1 --directory /srv/project/docs
-```
-
-On the desktop machine, start the forward and keep it running.
-
-```bash
-ssh -o ExitOnForwardFailure=yes -N -L 127.0.0.1:8000:127.0.0.1:8000 workbox
-```
-
-Create `html-forwards.json` in the Herdr app home, normally
-`~/.config/herdr-app`. Use the Herdr machine name as the key, the absolute
-server root as `root`, and the **local** forwarded port as `port`.
-
-```json
-{
-  "workbox": { "root": "/srv/project/docs", "port": 8000 }
-}
-```
-
-Click an HTML file under that root to open it at the forwarded localhost
-address. Select **View source** to load its HTML in Herdr. Local HTML opens
-as source. The layout and panel build on
+Click an HTML file in a remote space to open it in your browser. The mod
+starts a small server for the Files folder on that machine (it needs
+`python3` there) and an SSH tunnel to it. Both close after 5 minutes without
+use and start again on the next click. The Herdr machine name must be
+something `ssh` can reach, such as a Host from `~/.ssh/config`. Select
+**View source** to load the HTML in Herdr. Local HTML opens
+as source. A PDF shows an **Open in browser** button in a remote space, through
+the same tunnel, and **Open** locally for your default PDF app. The layout and panel build on
 Herdr's defaults. [Upstream files](https://github.com/herdrdev/herdr-app/tree/master/defaults) · [Apache-2.0 license](config/herdr-app/LICENSE-files-preview)
 
 ## Global workflows

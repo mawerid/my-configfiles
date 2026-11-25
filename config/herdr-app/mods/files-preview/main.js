@@ -1,9 +1,9 @@
 // Adapted from Herdr Desktop's Files mod (Apache-2.0).
 // https://github.com/herdrdev/herdr-app/blob/master/defaults/mods/files/main.js
 // A lazy file browser for the focused pane's folder, with bounded read-only previews.
-import { View, div, svg } from "gpui-kit";
+import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
-import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
+import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window, run, layout } from "herdr";
 function location() {
   const space = spaces().find(s => s.active), f = focused();
   const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
@@ -14,27 +14,57 @@ const key = () => JSON.stringify(location());
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
 
-function pathSegments(path) {
-  if (typeof path !== "string" || !path.startsWith("/") || /[\\\u0000-\u001f\u007f]/.test(path)) return null;
-  const parts = path.split("/").filter(Boolean);
-  return parts.some(part => part === "." || part === "..") ? null : parts;
+const ICONS = "mods/files-preview/icons/";
+// Material icon lookup the way VS Code does it: file name, longest extension, default.
+function iconFile(table, name, dir, open) {
+  const lower = name.toLowerCase();
+  const sets = themes().find(item => item.name === settings().theme)?.light && table.light ? [table.light, table] : [table];
+  const find = (kind, key) => sets.map(set => set[kind]?.[key]).find(Boolean);
+  if (dir) return find(open ? "folderNamesExpanded" : "folderNames", lower) ?? table[open ? "folderExpanded" : "folder"];
+  let icon = find("fileNames", lower);
+  for (let i = lower.indexOf("."); !icon && i !== -1; i = lower.indexOf(".", i + 1)) icon = find("fileExtensions", lower.slice(i + 1));
+  return icon ?? table.file;
+}
+function hasNode(node, id) {
+  return node?.id === id || (node?.children ?? []).some(child => hasNode(child, id));
 }
 
-function forwardedHtmlUrl(config, machine, path) {
-  if (!config || !Object.prototype.hasOwnProperty.call(config, machine)) {
-    throw new Error("Configure this machine's SSH forward in html-forwards.json.");
+const IDLE_SECONDS = 300;
+const tunnels = new Map(), locks = new Map();
+
+// One SSH connection per machine carries a forward per served folder. ControlPersist
+// closes it after IDLE_SECONDS without open connections; the next click reopens it.
+async function tunnel(machine, socketPath) {
+  const dir = await exec("sh", ["-c", 'd="${XDG_RUNTIME_DIR:-/tmp}/herdr-html-$(id -u)"; mkdir -p -m 700 "$d" && [ -O "$d" ] && printf %s "$d"']);
+  if (dir.code !== 0) throw new Error("Cannot create the local tunnel folder.");
+  const control = dir.stdout + "/" + encodeURIComponent(machine) + ".ctl";
+  const ssh = (...args) => exec("ssh", ["-o", "ControlPath=" + control, "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", ...args, machine]);
+  if ((await ssh("-O", "check")).code !== 0) {
+    for (const key of tunnels.keys()) if (key.startsWith(machine + "\n")) tunnels.delete(key);
+    await exec("rm", ["-f", control]);
+    const started = await ssh("-f", "-N", "-M", "-o", "ControlPersist=" + IDLE_SECONDS);
+    if (started.code !== 0) throw new Error("SSH to " + machine + " failed: " + started.stderr.trim());
   }
-  const { root, port } = config[machine] ?? {};
-  const rootParts = pathSegments(root);
-  if (!rootParts || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("The SSH forward needs an absolute POSIX root and a port from 1 to 65535.");
+  const key = machine + "\n" + socketPath;
+  if (!tunnels.has(key)) {
+    const free = await exec("python3", ["-c", "import socket; s = socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1])"]);
+    const port = Number(free.stdout.trim());
+    const forward = await ssh("-O", "forward", "-L", "127.0.0.1:" + port + ":" + socketPath);
+    if (free.code !== 0 || forward.code !== 0) throw new Error("Could not forward a local port: " + forward.stderr.trim());
+    tunnels.set(key, port);
   }
-  const parts = pathSegments(path);
-  if (!parts || parts.length <= rootParts.length || !rootParts.every((part, i) => parts[i] === part)) {
-    throw new Error("This file is outside the root configured for the SSH forward.");
-  }
-  const relative = parts.slice(rootParts.length).map(part => encodeURIComponent(part)).join("/");
-  return "http://127.0.0.1:" + port + "/" + relative;
+  return tunnels.get(key);
+}
+
+async function forwardedUrl(machine, root, relative) {
+  const code = await readTextFile(appHome() + "/mods/files-preview/html_server.py");
+  if (code === null) throw new Error("Run setup-herdr.sh to install html_server.py.");
+  const served = await exec("python3", ["-c", code, root], { on: machine });
+  if (served.code !== 0) throw new Error("Could not start the file server on " + machine + ": " + served.stderr.trim());
+  const run = (locks.get(machine) ?? Promise.resolve()).catch(() => {}).then(() => tunnel(machine, served.stdout.trim()));
+  locks.set(machine, run);
+  const port = await run;
+  return "http://127.0.0.1:" + port + "/" + relative.split("/").map(encodeURIComponent).join("/");
 }
 
 async function directory(path, on) {
@@ -65,8 +95,13 @@ export default class Files extends View {
   init(_props, cx) {
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
-    this.markdown = null;
+    this.markdown = null; this.ignored = new Set(); this.icons = null;
     if (checking()) return;
+    cx.spawn(async cx => {
+      const json = await readTextFile(appHome() + "/" + ICONS + "icons.json").catch(() => null);
+      try { this.icons = json ? JSON.parse(json) : null; } catch { this.icons = null; }
+      cx.notify();
+    });
     this.refresh(cx);
     cx.timer.every(10000, cx => this.refresh(cx));
   }
@@ -133,8 +168,12 @@ export default class Files extends View {
           await this.loadFolder(path, context);
         }
         const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on }).catch(() => null);
-        const marks = {};
+        const marks = {}, ignored = new Set();
         if (top?.code === 0) {
+          const repo = top.stdout.trim();
+          // --directory lists a fully ignored folder once instead of every file in it.
+          const listed = await exec("git", ["--no-optional-locks", "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"], { cwd: repo, on }).catch(() => null);
+          if (listed?.code === 0) for (const entry of listed.stdout.split("\0").filter(Boolean).slice(0, TOTAL)) ignored.add(`${repo}/${entry.replace(/\/$/, "")}`);
           // Writes nothing under .git (index lock, fsmonitor cookie): the folder watch would refresh again.
           const status = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], { cwd, on }).catch(() => null);
           if (status?.code === 0) for (const entry of status.stdout.split("\0").filter(Boolean).slice(0, TOTAL)) {
@@ -143,7 +182,7 @@ export default class Files extends View {
           }
         }
         if (!this.current(context)) return;
-        this.marks = marks; this.error = null; this.watch(cwd, cx);
+        this.marks = marks; this.ignored = ignored; this.error = null; this.watch(cwd, cx);
       } catch (e) { if (this.current(context)) this.error = String(e); }
       finally { if (this.context === context) this.loading = false; cx.notify(); }
     });
@@ -168,22 +207,15 @@ export default class Files extends View {
     }
     cx.notify();
   }
-  async openForwardedHtml(path, machine, current) {
+  // Remote files open in the browser through the SSH tunnel; local ones in their default app.
+  async openExternal(root, path, machine, current) {
     const platform = window()?.platform;
     const opener = platform === "macos" ? "open" : platform === "linux" ? "xdg-open" : null;
-    if (!opener) throw new Error("The browser opener is available on macOS and Linux.");
-
-    let forwards;
-    try {
-      const json = await readTextFile(appHome() + "/html-forwards.json");
-      forwards = JSON.parse(json ?? "{}");
-    } catch {
-      throw new Error("Check the JSON in html-forwards.json.");
-    }
-    const url = forwardedHtmlUrl(forwards, machine, path);
+    if (!opener) throw new Error("Opening files is available on macOS and Linux.");
+    const target = machine ? await forwardedUrl(machine, root, path) : root + "/" + path;
     if (!current()) return;
-    const result = await exec(opener, [url]);
-    if (result.code !== 0) throw new Error("Could not open the loopback URL in your browser.");
+    const result = await exec(opener, [target]);
+    if (result.code !== 0) throw new Error("Could not open " + (machine ? "the loopback URL in your browser." : "this file."));
   }
 
   sourceEditor(value, ext) {
@@ -194,18 +226,19 @@ export default class Files extends View {
 
   show(path, cx, openHtml = false) {
     this.code?.release(); this.code = null; this.file = path; this.fileError = null;
-    this.markdown = null; this.raw = false; this.browserError = null; this.browserOpened = false;
+    this.markdown = null; this.raw = false; this.browserError = null; this.browserOpened = false; this.pdf = false;
     const selection = this.selection = {};
     if (!path || !cx) return;
     const context = this.context, root = this.root, on = this.on;
     const absolutePath = root + "/" + path;
     const current = () => this.selection === selection && this.current(context);
     const ext = path.includes(".") ? path.split(".").pop().toLowerCase() : "txt";
+    if (ext === "pdf") { this.pdf = true; return; }
     cx.spawn(async cx => {
       try {
         if (openHtml && on && (ext === "html" || ext === "htm")) {
           try {
-            await this.openForwardedHtml(absolutePath, on, current);
+            await this.openExternal(root, path, on, current);
             if (current()) this.browserOpened = true;
             return;
           } catch (error) {
@@ -230,17 +263,37 @@ export default class Files extends View {
     for (const entry of this.entries.get(prefix) ?? []) {
       if (out.length >= TOTAL) break;
       const path = prefix ? `${prefix}/${entry.name}` : entry.name, open = this.folders.has(path), mark = this.marks[`${this.root}/${path}`];
+      const dimmed = this.isIgnored(`${this.root}/${path}`);
       out.push(h_flex().id(`file-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
         .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.show(path, cx, true))
         .child(entry.dir ? svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
-        .child(svg(`mods/files/${entry.dir ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
-        .child(div().flex_1().min_w(0).truncate().child(entry.name))
+        .child(this.icons
+          ? image(ICONS + iconFile(this.icons, entry.name, entry.dir, open)).size(16).flex_none().opacity(dimmed ? 0.45 : 1)
+          : svg(`mods/files/${entry.dir ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
+        .child(div().flex_1().min_w(0).truncate().when(dimmed, el => el.text_color(t.dim)).child(entry.name))
         .when(Boolean(mark), el => el.child(div().text_size(11).text_color(mark === "A" ? t.ansi2 : mark === "D" || mark === "U" ? t.ansi1 : t.blocked).child(mark))));
       if (entry.dir && open) this.rows(path, depth + 1, out, t);
     }
     return out;
   }
+  isIgnored(path) {
+    for (let p = path; p.includes("/"); p = p.slice(0, p.lastIndexOf("/"))) if (this.ignored.has(p)) return true;
+    return false;
+  }
   preview(t) {
+    if (this.pdf) {
+      const file = this.file, root = this.root, on = this.on, context = this.context;
+      return div().p(12)
+        .child(div().text_color(t.muted).child("PDF document"))
+        .child(div().id("files-pdf-open").mt(6).cursor_pointer().text_color(t.accent)
+          .on_click((_e, cx) => cx.spawn(async cx => {
+            this.browserError = null;
+            try { await this.openExternal(root, file, on, () => this.file === file && this.current(context)); }
+            catch (error) { if (this.file === file) this.browserError = error.message ?? String(error); }
+            cx.notify();
+          }))
+          .child(on ? "Open in browser" : "Open"));
+    }
     if (this.browserOpened) {
       return div().p(12)
         .child(div().text_color(t.muted).child("Sent to your browser"))
@@ -266,6 +319,8 @@ export default class Files extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
+        .when(hasNode(layout(), "todo"), el => el.child(div().id("files-todo-link").cursor_pointer().text_size(12).text_color(t.accent)
+          .on_click(() => run("layout.select", { stack: "panel-body", child: "todo" })).child("TODO")))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
       .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
