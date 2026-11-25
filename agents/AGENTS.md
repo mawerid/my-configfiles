@@ -13,10 +13,13 @@
 - Default to explanation, analysis, planning, and review before acting.
 - Before making changes, identify the smallest affected file set and confirm the approach. Once approved, continue within that scope without requesting the same approval again. Ask again only when scope, externally visible behavior, or risk materially changes.
 - Prefer minimal, targeted patches over broad rewrites.
-- Keep solutions as simple as possible; make the minimal code change that solves the task.
+- Make the smallest complete change. Before editing, list every place it must reach (callers, tests, fixtures, config, exports) and what it could break for users (lost or exposed data, broken callers). Be lazy about the solution, never about finishing the change.
+- Take the first option that fully works: skip what nobody asked for and name it in one line; reuse what the codebase already has, the way surrounding code does; then the standard library or a platform feature; then an installed dependency; only then the minimum new code.
+- Build what was asked, all of it. If a smaller option would do, name it in one line and let the user pick; never shrink the request silently. A vague request gets the smallest version that does the core job.
 - If you get stuck or a decision is ambiguous, stop instead of guessing or working around it. In the main session, ask the user; as a subagent, stop and report the blocker to the orchestrator.
 - Do not commit, push, publish, upload, or share unless explicitly asked.
-- When fixing a bug, fix only that bug — do not refactor surrounding code.
+- When fixing a bug, grep every caller of the function you touch and fix the root cause once in the shared code. Fix only that bug — do not refactor surrounding code.
+- End each change with one or two lines: what you skipped or did not verify, and any risk the user must know.
 
 ## Orchestration
 
@@ -32,11 +35,16 @@
 ## Code quality
 
 - Preserve the existing architecture unless there is a clear reason to change it.
-- Avoid adding dependencies unless necessary.
+- Avoid adding dependencies unless necessary; never for a few lines.
 - Prefer deterministic, maintainable solutions over clever ones.
-- Do not add speculative abstractions, helpers, or error handling for cases that cannot occur.
+- Do not add speculative abstractions, helpers, wrappers, type conversions, options, config, or error handling for cases that cannot occur. Keep values in the form the platform provides. Prefer deletion over addition.
+- The shortest working diff wins only if it reads at a glance. Between options of equal size, pick the one that is correct on edge cases.
+- Code you move or merge keeps its error handling and validation.
+- New non-trivial logic (a branch, loop, parser, money or security code, a new script) gets one small test or assert-based self-check; trivial changes need none.
 - Do not add comments, docstrings, or type annotations to code you did not change.
+- Mark a known limitation with a comment: `shortcut: <the limit>, <when to upgrade>`. Otherwise, comment only the non-obvious why, in one line.
 - Do not add features beyond what was asked.
+- Never cut validation at trust boundaries, error handling that prevents data loss, security, accessibility, calibration that real hardware needs, or anything the user asked for.
 
 Consult project instructions for architecture, test commands, release policy and external resources.
 
