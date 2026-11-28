@@ -1,15 +1,16 @@
 // Adapted from Herdr Desktop's Spaces mod v0.1.18 (Apache-2.0).
 // https://github.com/herdrdev/herdr-app/blob/v0.1.18/defaults/mods/spaces/main.js
 // Changed: each space shows its Material folder icon (or a picked icon or emoji);
-// clicking the icon opens the space-icon picker; no branch text after space names.
+// clicking the icon opens the space-icon picker; no branch text after space names, so git
+// is only asked which repo a place is in (no branch, ahead/behind or .git watches);
+// Neovim's Ctrl-h/j/k/l edge handoff (the nvim.nav label) moves to the next pane.
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
-// grouped by machine when more than one is known. After a space's name, the repo
-// its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
-// switch, right-click for its menu, drag to reorder.
+// grouped by machine when more than one is known. Agent state lives in the agents
+// list, not here. Click to switch, right-click for its menu, drag to reorder.
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, appHome, readTextFile, themes, settings } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, window, layout, appHome, readTextFile, themes, settings, terminals, focused } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -31,8 +32,7 @@ function place(s, ps) {
 }
 const rowHeight = ({ tree }) => (tree ? 28 : 30);
 const RAIL_CELL = 32;
-// A space's name and its git tail never shrink below this, so a short one ("api")
-// stays readable instead of turning into an ellipsis next to a long branch.
+// A space's name never shrinks below this, so a short one ("api") stays readable.
 const SIDE_MIN = 48;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -44,8 +44,8 @@ const repoName = (common) => {
   const own = base(common);
   return own === ".bare" ? base(common.slice(0, -own.length - 1)) : own.replace(/\.git$/, "");
 };
-// Changes made outside Herdr (an editor's save, a commit in another app): looked
-// for this often, in repos the list shows, while the window is in front.
+// Repo changes made outside Herdr (a git init or a new worktree in another app):
+// looked for this often, in places the list shows, while the window is in front.
 const FALLBACK = 60000;
 // Places looked at together (two git runs each). All at once, a few hundred spaces
 // run out of the app's open files (256 when started from the Dock on macOS) or
@@ -108,14 +108,13 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
-    this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
+    this.git = {}; // where() -> { name, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
     this.pending = new Set(); // where()s to look at next
     this.busy = {}; // pane -> an agent working or a program in front of its shell
     this.ready = {}; // machine -> its layout was readable at the last look
     this.at = {}; // space -> its where() at the last look
-    this.watching = new Map(); // local repos' pending folder watches
     // Spaces made while this runs wait (at most a moment) for their git, so a
     // worktree appears under its repo instead of jumping there.
     this.shown = new Set(spaces().map((s) => s.id));
@@ -125,6 +124,7 @@ export default class Spaces extends View {
     this.scroll = ScrollHandle.new(); // the list's position: the active space is brought into view through it
     this.activeAt = -1; // the active space's place among the list's children (headers and rows), -1 when not drawn
     this.machines = [];
+    this.navSeen = null; // terminal address -> its last nvim.nav label, null until the first look
     this.icons = null; // Material icon table installed with files-preview
     cx.spawn(async (cx) => {
       const json = await readTextFile(appHome() + "/" + ICONS + "icons.json").catch(() => null);
@@ -143,7 +143,22 @@ export default class Spaces extends View {
     cx.timer.every(250, (cx) => this.checkNew(cx));
   }
 
+  // Neovim at its last split sets its terminal's nvim.nav label to "<direction>:<nonce>"
+  // (config/nvim keymaps). A new value on the focused terminal moves to the next pane. Labels
+  // seen on the first look are old presses and only recorded. Local and SSH terminals alike.
+  followNav() {
+    const first = !this.navSeen, seen = (this.navSeen ??= new Map()), here = focused()?.terminal;
+    for (const term of terminals()) {
+      const value = term.labels?.["nvim.nav"];
+      if (typeof value !== "string" || seen.get(term.address) === value) continue;
+      seen.set(term.address, value);
+      const direction = value.split(":")[0];
+      if (!first && term.address === here && ["left", "right", "up", "down"].includes(direction)) run("pane.go", { direction });
+    }
+  }
+
   checkNew(cx) {
+    this.followNav();
     const now = Date.now();
     const sp = spaces();
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
@@ -152,8 +167,8 @@ export default class Spaces extends View {
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
   }
 
-  // Places whose git could have changed: new ones (a new space, a cd), where a
-  // command or an agent's turn just ended (a checkout, a commit, edits), those on
+  // Places whose repo could have changed: new ones (a new space, a cd), where a
+  // command or an agent's turn just ended (a git init, a new worktree), those on
   // a machine that is back, and repos in view whose fallback is due.
   due(now, sp, ps) {
     // Moved there: what it knew of that place may be old.
@@ -165,11 +180,6 @@ export default class Spaces extends View {
       delete this.checked[k];
       this.unsure.delete(k);
     }
-    const repos = new Set(Object.values(this.git).filter(Boolean).map((g) => g.repo));
-    for (const [repo, pending] of this.watching) if (!repos.has(JSON.stringify([null, repo]))) {
-      this.watching.delete(repo);
-      pending.cancel();
-    }
     const due = new Set([...keys].filter((k) => !(k in this.git)));
     for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
     this.at = at;
@@ -179,7 +189,7 @@ export default class Spaces extends View {
     for (const p of ps) {
       if (!p.terminal || !spaceOf[p.tab]) continue;
       busy[p.pane] = p.status === "working" || !(p.program?.shell || p.program?.agent);
-      if (this.busy[p.pane] && !busy[p.pane]) this.sameRepo(at[spaceOf[p.tab].id], keys).forEach((k) => due.add(k));
+      if (this.busy[p.pane] && !busy[p.pane]) due.add(at[spaceOf[p.tab].id]);
     }
     this.busy = busy;
     for (const m of machines()) {
@@ -194,12 +204,6 @@ export default class Spaces extends View {
       }
     }
     return due;
-  }
-
-  // `key` and the other places in its repo (a commit there moves their ahead/behind).
-  sameRepo(key, keys) {
-    const repo = this.git[key]?.repo;
-    return [key, ...(repo ? [...keys].filter((k) => this.git[k]?.repo === repo) : [])];
   }
 
   refreshMachines(cx) {
@@ -267,7 +271,7 @@ export default class Spaces extends View {
         this.pending.clear();
         let next = 0;
         await Promise.all(Array.from({ length: Math.min(AT_ONCE, keys.length) }, async () => {
-          while (next < keys.length) await this.check(keys[next++], cx);
+          while (next < keys.length) await this.check(keys[next++]);
         }));
       }
       this.refreshing = false;
@@ -275,8 +279,8 @@ export default class Spaces extends View {
     });
   }
 
-  // One place's git: branch, ahead/behind, its repo.
-  async check(key, cx) {
+  // One place's repo: its name, and whether it's a linked worktree.
+  async check(key) {
     const [on, cwd] = JSON.parse(key);
     this.checked[key] = Date.now();
     this.unsure.delete(key);
@@ -297,42 +301,12 @@ export default class Spaces extends View {
       }
       // The repo's own .git folder names it; a worktree's top differs from it.
       const top = r.stdout.replace(/\n$/, ""), repo = common.stdout.replace(/\n$/, "");
-      const [branch, counts] = await both(
-        exec("git", ["symbolic-ref", "-q", "HEAD"], { cwd, on }),
-        exec("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
-      );
-      const name = repoName(repo);
-      const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info = { name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git` };
-      this.git[key] = info;
-      if (!on) this.watch(repo, cx);
+      this.git[key] = { name: repoName(repo), repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git` };
     } catch {
       // Couldn't ask (the machine is away): keep what it showed, look again later.
       this.git[key] ??= null;
       this.unsure.add(key);
     }
-  }
-
-  watch(repo, cx) {
-    if (this.watching.has(repo)) return;
-    const pending = watchFolder(repo);
-    this.watching.set(repo, pending);
-    cx.spawn(async (cx) => {
-      let current = pending;
-      try {
-        for (;;) {
-          await current;
-          if (this.watching.get(repo) !== current) return;
-          const mine = JSON.stringify([null, repo]);
-          const keys = Object.keys(this.git).filter((k) => this.git[k]?.repo === mine);
-          if (!keys.length) break;
-          this.refreshGit(keys, cx);
-          current = watchFolder(repo);
-          this.watching.set(repo, current);
-        }
-      } catch {}
-      if (this.watching.get(repo) === current) this.watching.delete(repo);
-    });
   }
 
   menu(w) {
@@ -552,6 +526,7 @@ export default class Spaces extends View {
   }
 
   render() {
+    this.followNav();
     const t = theme();
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
