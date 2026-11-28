@@ -1,7 +1,8 @@
 // Adapted from Herdr Desktop's Spaces mod v0.1.18 (Apache-2.0).
 // https://github.com/herdrdev/herdr-app/blob/v0.1.18/defaults/mods/spaces/main.js
 // Changed: each space shows its Material folder icon (or a picked icon or emoji);
-// clicking the icon opens the space-icon picker.
+// clicking the icon opens the space-icon picker. Spaces sit under a foldable header per
+// git repo (or folder outside one), without the branch text after their names.
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
@@ -83,9 +84,12 @@ function spaceIcon(table, w, folder) {
   const emoji = EMOJI.exec(w.name)?.[0];
   if (emoji) return { emoji };
   if (!table) return { letter: spaceAvatar(w.name) };
+  return { icon: folderIcon(table, folder) };
+}
+function folderIcon(table, folder) {
   const light = themes().find((item) => item.name === settings().theme)?.light;
   const name = folder.toLowerCase();
-  return { icon: (light && table.light?.folderNames?.[name]) || table.folderNames?.[name] || table.folder };
+  return (light && table.light?.folderNames?.[name]) || table.folderNames?.[name] || table.folder;
 }
 
 // A space speaks up only when something in it needs you.
@@ -128,6 +132,7 @@ export default class Spaces extends View {
       for (const state of Object.values(this.reconnecting)) state.busy = false;
     } catch { this.reconnecting = {}; }
     try { this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]")); } catch { this.folded = new Set(); }
+    try { this.repoFolded = new Set(JSON.parse(localStorage.getItem("spaces.repoFolded") ?? "[]")); } catch { this.repoFolded = new Set(); }
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
@@ -393,8 +398,9 @@ export default class Spaces extends View {
     const loadingRow = m => h_flex().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).items_center().when(collapsed, el => el.justify_center()).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
     if (!remote.length) {
       if (loading(null) && !rows.length) return [loadingRow(null)];
-      this.activeAt = rows.findIndex(r => r.w.active);
-      return rows.map(draw);
+      const listed = this.byRepo(rows, draw, collapsed, t);
+      this.activeAt = listed.activeAt;
+      return listed.items;
     }
     const machineNames = [null, ...remote];
     return machineNames.flatMap((m) => {
@@ -451,41 +457,52 @@ export default class Spaces extends View {
             .text_size(11).text_color(t.foreground).bg(t.raised).cursor_pointer().hover(s => s.bg(t.hover))
             .on_click((_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(login); this.copiedLogin = login; cx.notify(); })
             .child(this.copiedLogin === login ? "Copied" : "Copy")))] : [];
-      const items = [cell(head), ...guidance, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : cell(empty)])];
-      const first = folded ? -1 : mine.findIndex(r => r.w.active);
+      const listed = this.byRepo(mine, draw, collapsed, t);
+      const items = [cell(head), ...guidance, ...(folded ? [] : mine.length ? listed.items : [loading(m) ? loadingRow(m) : cell(empty)])];
+      const first = folded ? -1 : listed.activeAt;
       if (first >= 0) this.activeAt = before + 1 + guidance.length + first;
       before += items.length;
       return items;
     });
   }
 
-  // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or
-  // branch goes when the name already says it (a worktree is named after its branch),
-  // and master/main go: nearly every space is on one. When the row is full, it
-  // and the name both start from their text's width and give way in proportion.
-  gitTail(g, tree, name, t) {
-    const raw = g.branch ?? "detached";
-    const fullName = name.toLowerCase();
-    const emoji = EMOJI.exec(name)?.[0];
-    const label = emoji ? name.slice(emoji.length).trim().toLowerCase() : fullName;
-    const same = (a) => {
-      const text = a.toLowerCase();
-      return text === fullName || text === label;
-    };
-    const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
-    const repo = tree || same(g.name) ? "" : g.name;
-    const where = [repo, branch].filter(Boolean).join(" \u00b7 ");
-    return h_flex()
-      .flex_auto()
-      .min_w(where ? SIDE_MIN : 0)
-      .gap(5)
-      .justify_end()
-      .items_center()
-      .text_size(11.5)
-      .text_color(t.dim)
-      .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
-      .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
-      .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
+  // Rows under a header per git repo (a folder outside one), in list order. The rail
+  // stays a plain list. Returns the children and the active row's place among them.
+  byRepo(rows, draw, collapsed, t) {
+    if (collapsed) return { items: rows.map(draw), activeAt: rows.findIndex((r) => r.w.active) };
+    const ps = panes(), groups = new Map();
+    for (const r of rows) {
+      const key = r.g?.repo ?? where(r.w, ps);
+      if (!groups.has(key)) groups.set(key, { key, name: r.g?.name ?? (base(place(r.w, ps) ?? "") || "~"), rows: [] });
+      groups.get(key).rows.push(r);
+    }
+    const items = [];
+    let activeAt = -1;
+    for (const group of groups.values()) {
+      const folded = this.repoFolded.has(group.key);
+      items.push(this.repoHead(group, folded, t));
+      if (folded) continue;
+      for (const r of group.rows) {
+        if (r.w.active) activeAt = items.length;
+        items.push(draw(r));
+      }
+    }
+    return { items, activeAt };
+  }
+
+  repoHead(group, folded, t) {
+    const active = group.rows.some((r) => r.w.active);
+    return h_flex().id(`repo-${group.key}`).h(24).flex_none().px(8).gap(6).items_center().rounded(6)
+      .text_size(11.5).text_color(active ? t.foreground : t.dim).cursor_pointer().hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => {
+        folded ? this.repoFolded.delete(group.key) : this.repoFolded.add(group.key);
+        localStorage.setItem("spaces.repoFolded", JSON.stringify([...this.repoFolded]));
+        cx.notify();
+      })
+      .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
+      .when(Boolean(this.icons), (el) => el.child(image(ICONS + folderIcon(this.icons, group.name)).size(14).flex_none()))
+      .child(div().flex_1().min_w(0).truncate().child(group.name))
+      .when(folded, (el) => el.child(div().flex_none().child(String(group.rows.length))));
   }
 
   row({ w, i, g, tree }, t) {
@@ -497,7 +514,8 @@ export default class Spaces extends View {
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
-      .px(8)
+      .pl(18)
+      .pr(8)
       .h(rowHeight({ tree }))
       .flex_none()
       .justify_center()
@@ -541,7 +559,7 @@ export default class Spaces extends View {
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).flex_none().text_color(t.dim)))
           .when(!tree, el => el.child(this.avatar(w, g, fill)))
           .child(div().flex_initial().min_w(SIDE_MIN).truncate().text_color(t.foreground).child(w.name))
-          .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1()),
+          .child(div().flex_1()),
       );
   }
 

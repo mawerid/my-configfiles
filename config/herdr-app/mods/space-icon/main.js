@@ -1,7 +1,7 @@
-// Picks a space's icon: Automatic (its Material folder icon), an emoji, or any
-// Material icon. Opened from the icon in spaces-icons with props { space }.
-// Type to filter, ↑/↓ and Enter to pick, Esc to close. Picks live in shared
-// "space.icons" as { [space id]: { emoji } | { icon } }.
+// Picks a space's icon: Automatic (its Material folder icon), an emoji from a grid,
+// or any Material icon. Opened from the icon in spaces-icons with props { space }.
+// Type to filter (emoji by hidden keywords), arrows and Enter to pick, Esc to close.
+// Picks live in shared "space.icons" as { [space id]: { emoji } | { icon } }.
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, ScrollHandle } from "gpui-base";
@@ -9,6 +9,7 @@ import { appHome, readTextFile, spaces, theme, props, closeOverlay, shared, setS
 
 const ICONS = "mods/files-preview/icons/";
 const SHOWN = 200;
+const COLS = 9; // emoji per grid row
 const EMOJI = [
   ["🚀", "rocket launch"], ["🔥", "fire hot"], ["⭐", "star"], ["✨", "sparkles"], ["💡", "idea bulb"],
   ["🧪", "test lab experiment"], ["🐛", "bug"], ["🔧", "wrench tool"], ["🛠️", "tools build"], ["⚙️", "gear config settings"],
@@ -83,14 +84,42 @@ export default class SpaceIcon extends View {
     const t = theme();
     const list = this.items();
     const name = spaces().find((s) => s.id === props()?.space)?.name ?? "space";
+    // Emoji sit together in the list (after Automatic, before icons) and are drawn as a grid.
+    const first = list.findIndex((it) => it.emoji), count = list.filter((it) => it.emoji).length;
+    const inGrid = (i) => first >= 0 && i >= first && i < first + count;
+    const gridRows = Math.ceil(count / COLS);
+    // The scroll list's child holding item i: a grid row counts once.
+    const childOf = (i) => !inGrid(i) ? (first >= 0 && i > first ? i - count + gridRows : i) : first + Math.floor((i - first) / COLS);
+    const cell = (it, i) => div().id(`si-${i}`).w(36).h(32).flex_none().flex().items_center().justify_center().rounded(6).cursor_pointer()
+      .text_size(18)
+      .when(i === this.at, (el) => el.bg(t.selected))
+      .hover((s) => s.bg(t.hover))
+      .on_click(() => this.choose(it))
+      .child(it.emoji);
+    const row = (it, i) => h_flex().id(`si-${i}`).h(28).flex_none().px(8).gap(9).items_center().rounded(6).cursor_pointer()
+      .when(i === this.at, (el) => el.bg(t.selected))
+      .hover((s) => s.bg(t.hover))
+      .on_click(() => this.choose(it))
+      .child(h_flex().size(18).flex_none().items_center().justify_center()
+        .child(it.icon ? image(ICONS + it.icon).size(16) : svg("mods/workspace-chrome/folder.svg").size(14).text_color(t.muted)))
+      .child(div().flex_1().min_w(0).truncate().child(it.label));
+    const children = [];
+    list.forEach((it, i) => {
+      if (!inGrid(i)) children.push(row(it, i));
+      else if ((i - first) % COLS === 0) children.push(h_flex().flex_none().children(list.slice(i, Math.min(i + COLS, first + count)).map((e, k) => cell(e, i + k))));
+    });
     return v_flex().id("space-icon").track_focus(this.handle).size_full().min_h(0).p(10).gap(8).bg(t.popover).text_size(12.8).text_color(t.foreground)
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (!list.length) return;
-        if (e.key === "down") this.at = (this.at + 1) % list.length;
-        else if (e.key === "up") this.at = (this.at + list.length - 1) % list.length;
+        // In the grid ↑/↓ move a row (leaving it at its edges); elsewhere one item.
+        const end = first + count, grid = inGrid(this.at);
+        if (e.key === "down") this.at = Math.min(list.length - 1, grid ? (this.at + COLS < end ? this.at + COLS : end) : this.at + 1);
+        else if (e.key === "up") this.at = Math.max(0, grid ? (this.at - COLS >= first ? this.at - COLS : first - 1) : this.at - 1);
+        else if (e.key === "right") this.at = Math.min(list.length - 1, this.at + 1);
+        else if (e.key === "left") this.at = Math.max(0, this.at - 1);
         else return;
-        this.scroll.scroll_to_item(this.at);
+        this.scroll.scroll_to_item(childOf(this.at));
         cx.stop_propagation();
         cx.notify();
       })
@@ -100,13 +129,7 @@ export default class SpaceIcon extends View {
         .child(Input.new(this.input).flex_1().h_full().text_color(t.foreground)))
       // A popup is only as tall as its content, so the list needs its own height (upstream picker does the same).
       .child(v_flex().id("space-icon-list").h(340).flex_none().overflow_y_scrollbar().track_scroll(this.scroll)
-        .children(list.map((it, i) => h_flex().id(`si-${i}`).h(28).flex_none().px(8).gap(9).items_center().rounded(6).cursor_pointer()
-          .when(i === this.at, (el) => el.bg(t.selected))
-          .hover((s) => s.bg(t.hover))
-          .on_click(() => this.choose(it))
-          .child(h_flex().size(18).flex_none().items_center().justify_center()
-            .child(it.icon ? image(ICONS + it.icon).size(16) : it.emoji ? div().text_size(14).child(it.emoji) : svg("mods/workspace-chrome/folder.svg").size(14).text_color(t.muted)))
-          .child(div().flex_1().min_w(0).truncate().child(it.label))))
+        .children(children)
         .when(!list.length, (el) => el.child(div().p(8).text_color(t.dim).child("No matches"))));
   }
 }
