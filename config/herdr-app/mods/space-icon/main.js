@@ -98,7 +98,8 @@ export default class SpaceIcon extends View {
       .child(h_flex().h(32).flex_none().px(8).gap(8).items_center().rounded(8).border_1().border_color(t.accent).bg(t.background)
         .child(svg("mods/workspace-chrome/search.svg").size(14).text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_color(t.foreground)))
-      .child(v_flex().id("space-icon-list").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll)
+      // A popup is only as tall as its content, so the list needs its own height (upstream picker does the same).
+      .child(v_flex().id("space-icon-list").h(340).flex_none().overflow_y_scrollbar().track_scroll(this.scroll)
         .children(list.map((it, i) => h_flex().id(`si-${i}`).h(28).flex_none().px(8).gap(9).items_center().rounded(6).cursor_pointer()
           .when(i === this.at, (el) => el.bg(t.selected))
           .hover((s) => s.bg(t.hover))
