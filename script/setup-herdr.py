@@ -18,6 +18,12 @@ from tempfile import NamedTemporaryFile, mkdtemp
 SOURCE = Path(__file__).resolve().parents[1] / "config/herdr-app"
 PREVIEW_LAYOUT = "layouts/files-preview.json"
 ICONS = "mods/files-preview/icons"
+# Shipped panels the generated layout swaps for this repo's copies.
+LAYOUT_MODS = {
+    "files": "files-preview",
+    "spaces": "spaces-icons",
+    "changes": "changes-diff",
+}
 ICON_PACKAGE = "https://registry.npmjs.org/material-icon-theme/latest"
 ICON_TABLES = ("fileNames", "fileExtensions", "folderNames", "folderNamesExpanded")
 SAFE_ICON = re.compile(r"[a-z0-9][a-z0-9_.-]*\.svg")
@@ -109,17 +115,17 @@ def preview_layout(target):
     except FileNotFoundError:
         print("Open Herdr once, then rerun setup to add the Files Preview layout.")
         return None
-    nodes = [layout]
+    nodes, swapped = [layout], set()
     while nodes:
         node = nodes.pop()
         content = node.get("content", {})
-        if node.get("id") == "files" and content.get("mod") == "files":
-            content["mod"] = "files-preview"
-            return (json.dumps(layout, ensure_ascii=False, indent=2) + "\n").encode(
-                "utf-8"
-            )
+        if content.get("mod") in LAYOUT_MODS:
+            swapped.add(content["mod"])
+            content["mod"] = LAYOUT_MODS[content["mod"]]
         nodes.extend(node.get("children", []))
-    raise ValueError(f"No Files panel found in {source}")
+    if "files" not in swapped:
+        raise ValueError(f"No Files panel found in {source}")
+    return (json.dumps(layout, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
 def install(target):
@@ -128,6 +134,12 @@ def install(target):
         "mods/files-preview/main.js",
         "mods/files-preview/mod.json",
         "mods/files-preview/html_server.py",
+        "mods/spaces-icons/main.js",
+        "mods/spaces-icons/mod.json",
+        "mods/space-icon/main.js",
+        "mods/space-icon/mod.json",
+        "mods/changes-diff/main.js",
+        "mods/changes-diff/mod.json",
     ]
     if sys.platform == "darwin":
         paths.extend(("mods/tmux-mode/main.js", "mods/tmux-mode/mod.json"))

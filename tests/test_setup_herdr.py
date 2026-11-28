@@ -42,6 +42,14 @@ class HerdrInstallerTests(unittest.TestCase):
             "children": [
                 {"id": "files", "type": "block", "content": {"mod": "files"}},
                 {"id": "extra", "type": "block", "content": {"mod": "changes"}},
+                {
+                    "id": "sidebar",
+                    "type": "column",
+                    "children": [
+                        {"id": "spaces", "type": "block", "content": {"mod": "spaces"}},
+                        {"id": "agents", "type": "block", "content": {"mod": "agents"}},
+                    ],
+                },
             ],
         }
         main.write_text(json.dumps(source))
@@ -50,7 +58,10 @@ class HerdrInstallerTests(unittest.TestCase):
         generated = json.loads(preview.read_text())
         self.assertEqual(json.loads(main.read_text()), source)
         self.assertEqual(generated["children"][0]["content"]["mod"], "files-preview")
-        self.assertEqual(generated["children"][1], source["children"][1])
+        self.assertEqual(generated["children"][1]["content"]["mod"], "changes-diff")
+        sidebar = generated["children"][2]["children"]
+        self.assertEqual(sidebar[0]["content"]["mod"], "spaces-icons")
+        self.assertEqual(sidebar[1], source["children"][2]["children"][1])
         self.assertFalse((self.target / ".setup-backups").exists())
 
         preview.write_text("{}")
