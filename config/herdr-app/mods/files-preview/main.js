@@ -2,8 +2,8 @@
 // https://github.com/herdrdev/herdr-app/blob/master/defaults/mods/files/main.js
 // A lazy file browser for the focused pane's folder, with bounded read-only previews.
 import { View, div, svg, image } from "gpui-kit";
-import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
-import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window } from "herdr";
+import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle } from "gpui-base";
+import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window, nextCommand, run } from "herdr";
 function location() {
   const space = spaces().find(s => s.active), f = focused();
   const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
@@ -25,6 +25,51 @@ function iconFile(table, name, dir, open) {
   for (let i = lower.indexOf("."); !icon && i !== -1; i = lower.indexOf(".", i + 1)) icon = find("fileExtensions", lower.slice(i + 1));
   return icon ?? table.file;
 }
+
+// The panels share data in one VM, but their host tasks belong to separate copies.
+const scans = globalThis[Symbol.for("herdr.repoStatus.v2")] ??= new Map();
+
+async function repoStatus(root, on, { after, visiting, urgent, allowInactive }, cx, current) {
+  const repo = JSON.stringify([on, root]), now = Date.now();
+  for (const [key, scan] of scans) {
+    if (scan.pollAt <= now || (!scan.pollAt && scan.task.is_done())) scans.delete(key);
+  }
+  while (current()) {
+    let scan = scans.get(repo);
+    const pending = scan && !scan.pollAt && !scan.task.is_done();
+    const reusable = scan?.status?.code === 0 && Date.now() < scan.pollAt
+      && (scan.started >= after || (!urgent && Date.now() < scan.watchAt));
+    if (!reusable && (!pending || (visiting && scan.started !== undefined && scan.started < after))) {
+      if (!allowInactive && window()?.active === false) return null;
+      const next = {};
+      next.task = cx.spawn(async cx => {
+        await cx.sleep(25); // Let both listeners for a watch batch join before starting Git.
+        if (!allowInactive && window()?.active === false) return;
+        next.started = Date.now();
+        try {
+          next.status = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], { cwd: root, on });
+        } catch (error) {
+          next.error = error;
+        } finally {
+          const finished = Date.now(), duration = finished - next.started;
+          const delay = duration < 500 ? 0 : Math.min(60000, 5 * duration);
+          next.watchAt = finished + delay;
+          next.pollAt = finished + Math.max(10000, delay);
+          if (next.status?.code !== 0 && scans.get(repo) === next) scans.delete(repo);
+        }
+      });
+      scans.set(repo, next);
+      scan = next;
+    }
+    // Resume through our own host task, so another copy's close cannot cancel our follow-up work.
+    while (current() && !scan.pollAt && !scan.task.is_done()) await cx.sleep(50);
+    if (!current()) return null;
+    if (!scan.pollAt) continue; // The scanning copy closed or reloaded.
+    return scan;
+  }
+  return null;
+}
+
 
 const IDLE_SECONDS = 300;
 const tunnels = new Map(), locks = new Map();
@@ -93,33 +138,52 @@ export default class Files extends View {
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
     this.markdown = null; this.ignored = new Set(); this.icons = null;
+    this.handle = cx.focus_handle(); this.scroll = ScrollHandle.new();
+    this.cursor = null; this.visible = []; // keyboard selection (a tree path) and the tree's rows in order
     if (checking()) return;
+    // pane.go hands this panel the keyboard ("focusable" in mod.json).
+    cx.spawn(async cx => {
+      for (;;) {
+        if (await nextCommand() === "focus") { this.handle.focus(); cx.notify(); }
+      }
+    });
     cx.spawn(async cx => {
       const json = await readTextFile(appHome() + "/" + ICONS + "icons.json").catch(() => null);
       try { this.icons = json ? JSON.parse(json) : null; } catch { this.icons = null; }
       cx.notify();
     });
     this.refresh(cx);
-    cx.timer.every(10000, cx => this.refresh(cx));
+    cx.timer.every(500, cx => this.refreshIfDue(cx));
   }
-  watch(root, cx) {
-    if (this.on || this.watched === root) return;
-    this.watched = root;
-    const context = this.context;
+
+  refreshIfDue(cx) {
+    const active = window()?.active !== false, context = this.context;
+    const refocused = active && this.windowActive === false;
+    this.windowActive = active;
+    if (!context) return;
+    if (refocused && (context.dirtyAt || !context.watch)) context.catchUp = true;
+    if (!active || this.loading) return;
+    const now = Date.now();
+    if (context.catchUp || (context.dirtyAt && now >= context.watchAt) || now >= context.pollAt) this.refresh(cx);
+  }
+
+  watch(root, context, cx) {
+    if (context.on || context.watch?.root === root) return;
+    context.watch?.pending?.cancel();
+    const watch = { root };
+    context.watch = watch;
     cx.spawn(async cx => {
       try {
-        while (this.current(context)) {
-          const pending = watchFolder(root);
-          this.folderWatch = pending;
-          await pending;
-          if (this.folderWatch === pending) this.folderWatch = null;
-          if (this.current(context)) this.refresh(cx);
+        while (this.context === context && context.watch === watch) {
+          watch.pending = watchFolder(root);
+          const paths = await watch.pending;
+          if (paths.length && context.watch === watch && this.current(context)) {
+            context.dirtyAt = Date.now() + 1;
+            this.refreshIfDue(cx);
+          }
         }
       } catch {
-        if (this.context === context) {
-          this.folderWatch = null;
-          this.watched = null;
-        }
+        if (context.watch === watch) context.watch = null;
       }
     });
   }
@@ -139,49 +203,83 @@ export default class Files extends View {
     const place = location();
     const { cwd, on } = place;
     const next = JSON.stringify(place);
-    if (next !== this.context?.key) {
-      if (this.context) this.saved.set(this.context.key, {
-        folders: this.folders, file: this.file, browserOpened: this.browserOpened,
-      });
-      this.folderWatch?.cancel?.();
-      this.folderWatch = null;
+    const visiting = next !== this.context?.key;
+    if (visiting) {
+      if (this.context) {
+        this.saved.set(this.context.key, {
+          folders: this.folders, file: this.file, browserOpened: this.browserOpened,
+        });
+        this.context.watch?.pending?.cancel();
+      }
       const saved = this.saved.get(next);
-      this.context = { key: next, cwd, on }; this.root = cwd; this.on = on; this.entries = new Map(); this.folders = new Set(saved?.folders);
-      this.pending = new Set(); this.marks = {}; this.show(null); this.watched = null; this.error = null; this.limited = false;
+      this.context = { key: next, cwd, on, dirtyAt: 0 }; this.root = cwd; this.on = on; this.entries = new Map(); this.folders = new Set(saved?.folders);
+      this.pending = new Set(); this.marks = {}; this.show(null); this.error = null; this.limited = false;
       this.loading = false;
       if (saved?.browserOpened) {
         this.file = saved.file;
         this.browserOpened = true;
       } else if (saved?.file) this.show(saved.file, cx);
     }
-    if (!cwd || this.loading) return;
     const context = this.context;
+    const now = Date.now();
+    if (!cwd) {
+      context.catchUp = false;
+      context.dirtyAt = 0;
+      context.pollAt = now + 10000;
+      return;
+    }
+    if (this.loading) return;
+    if (context.catchUp && !context.dirtyAt) context.dirtyAt = now + 1;
+    const request = {
+      after: visiting ? now + 1 : context.dirtyAt || (context.lastStatus ?? -1) + 1,
+      visiting,
+      urgent: visiting || context.catchUp,
+      allowInactive: visiting,
+    };
+    context.catchUp = false;
+    context.pollAt = context.watchAt = now + 10000;
     this.loading = true;
     this.limited = false;
     cx.spawn(async cx => {
       try {
+        this.watch(cwd, context, cx);
+        const dirtyAtListing = context.dirtyAt;
         for (const path of ["", ...this.folders]) {
           if (!this.current(context)) return;
           await this.loadFolder(path, context);
         }
         const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on }).catch(() => null);
+        if (!this.current(context)) return;
         const marks = {}, ignored = new Set();
+        let covered = dirtyAtListing;
         if (top?.code === 0) {
           const repo = top.stdout.trim();
           // --directory lists a fully ignored folder once instead of every file in it.
           const listed = await exec("git", ["--no-optional-locks", "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"], { cwd: repo, on }).catch(() => null);
           if (listed?.code === 0) for (const entry of listed.stdout.split("\0").filter(Boolean).slice(0, TOTAL)) ignored.add(`${repo}/${entry.replace(/\/$/, "")}`);
-          // Writes nothing under .git (index lock, fsmonitor cookie): the folder watch would refresh again.
-          const status = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], { cwd, on }).catch(() => null);
+          const scan = await repoStatus(repo, on, request, cx, () => this.context === context);
+          if (!scan || !this.current(context)) return;
+          const { status, started, pollAt, watchAt } = scan;
+          context.lastStatus = started;
+          context.pollAt = pollAt;
+          context.watchAt = watchAt;
+          covered = Math.min(dirtyAtListing, started);
+          if (request.urgent && request.after > started) context.catchUp = true;
           if (status?.code === 0) for (const entry of status.stdout.split("\0").filter(Boolean).slice(0, TOTAL)) {
             const xy = entry.slice(0, 2);
-            marks[`${top.stdout.trim()}/${entry.slice(3)}`] = xy === "??" || xy.includes("A") ? "A" : xy.includes("U") ? "U" : xy.includes("D") ? "D" : "M";
+            marks[`${repo}/${entry.slice(3)}`] = xy === "??" || xy.includes("A") ? "A" : xy.includes("U") ? "U" : xy.includes("D") ? "D" : "M";
           }
+        } else {
+          context.watchAt = Date.now();
         }
         if (!this.current(context)) return;
-        this.marks = marks; this.ignored = ignored; this.error = null; this.watch(cwd, cx);
+        if (context.dirtyAt <= covered) context.dirtyAt = 0;
+        this.marks = marks; this.ignored = ignored; this.error = null;
       } catch (e) { if (this.current(context)) this.error = String(e); }
-      finally { if (this.context === context) this.loading = false; cx.notify(); }
+      finally {
+        if (this.context === context) this.loading = false;
+        cx.notify();
+      }
     });
   }
   toggle(path, cx) {
@@ -261,8 +359,10 @@ export default class Files extends View {
       if (out.length >= TOTAL) break;
       const path = prefix ? `${prefix}/${entry.name}` : entry.name, open = this.folders.has(path), mark = this.marks[`${this.root}/${path}`];
       const dimmed = this.isIgnored(`${this.root}/${path}`);
+      this.visible.push({ path, dir: entry.dir, open });
       out.push(h_flex().id(`file-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
-        .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.show(path, cx, true))
+        .when(path === this.cursor, el => el.bg(t.selected))
+        .on_click((_e, cx) => { this.cursor = path; entry.dir ? this.toggle(path, cx) : this.show(path, cx, true); })
         .child(entry.dir ? svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
         .child(this.icons
           ? image(ICONS + iconFile(this.icons, entry.name, entry.dir, open)).size(16).flex_none().opacity(dimmed ? 0.45 : 1)
@@ -272,6 +372,38 @@ export default class Files extends View {
       if (entry.dir && open) this.rows(path, depth + 1, out, t);
     }
     return out;
+  }
+  // Arrows (or h/j/k/l) walk the tree, Enter/Space opens; in a preview Esc/←/Backspace goes back.
+  // Esc in the tree gives the keyboard back to the terminal on the left.
+  key(e, cx) {
+    const k = e.key;
+    if (e.modifiers.control || e.modifiers.alt || e.modifiers.platform) return;
+    if (this.file) {
+      if (k !== "escape" && k !== "left" && k !== "backspace") return;
+      this.cursor = this.file;
+      this.show(null);
+    } else if (k === "escape") {
+      run("pane.go", { direction: "left" });
+    } else {
+      const rows = this.visible;
+      if (!rows.length) return;
+      let at = rows.findIndex(r => r.path === this.cursor);
+      const row = rows[at];
+      if (k === "down" || k === "j") at = Math.min(rows.length - 1, at + 1);
+      else if (k === "up" || k === "k") at = Math.max(0, at - 1);
+      else if ((k === "right" || k === "l") && row?.dir) { if (row.open) at = Math.min(rows.length - 1, at + 1); else this.toggle(row.path, cx); }
+      else if ((k === "left" || k === "h") && row) {
+        if (row.dir && row.open) this.toggle(row.path, cx);
+        else if (row.path.includes("/")) at = rows.findIndex(r => r.path === row.path.slice(0, row.path.lastIndexOf("/")));
+      }
+      else if ((k === "enter" || k === "space" || k === " ") && row) row.dir ? this.toggle(row.path, cx) : this.show(row.path, cx, true);
+      else return;
+      at = Math.max(0, at);
+      this.cursor = rows[at].path;
+      this.scroll.scroll_to_item(at);
+    }
+    cx.stop_propagation();
+    cx.notify();
   }
   isIgnored(path) {
     for (let p = path; p.includes("/"); p = p.slice(0, p.lastIndexOf("/"))) if (this.ignored.has(p)) return true;
@@ -310,14 +442,18 @@ export default class Files extends View {
   }
 
   render(cx) {
-    if (!checking() && key() !== this.context?.key) this.refresh(cx);
+    if (!checking()) {
+      if (key() !== this.context?.key) this.refresh(cx);
+      else this.refreshIfDue(cx);
+    }
     const t = theme();
-    return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
+    this.visible = [];
+    return v_flex().id("files").track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx)).size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
-      .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
+      .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
         .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("File list limited to 500 entries per folder and 5,000 total")))))
       .when(this.markdown !== null, el => el.child(h_flex().flex_none().px(14).py(5).gap(4).border_b(1).border_color(t.border)

@@ -42,6 +42,14 @@ class HerdrInstallerTests(unittest.TestCase):
             "children": [
                 {"id": "files", "type": "block", "content": {"mod": "files"}},
                 {"id": "extra", "type": "block", "content": {"mod": "changes"}},
+                {
+                    "id": "sidebar",
+                    "type": "column",
+                    "children": [
+                        {"id": "spaces", "type": "block", "content": {"mod": "spaces"}},
+                        {"id": "agents", "type": "block", "content": {"mod": "agents"}},
+                    ],
+                },
             ],
         }
         main.write_text(json.dumps(source))
@@ -50,7 +58,10 @@ class HerdrInstallerTests(unittest.TestCase):
         generated = json.loads(preview.read_text())
         self.assertEqual(json.loads(main.read_text()), source)
         self.assertEqual(generated["children"][0]["content"]["mod"], "files-preview")
-        self.assertEqual(generated["children"][1], source["children"][1])
+        self.assertEqual(generated["children"][1]["content"]["mod"], "changes-diff")
+        sidebar = generated["children"][2]["children"]
+        self.assertEqual(sidebar[0]["content"]["mod"], "spaces-icons")
+        self.assertEqual(sidebar[1], source["children"][2]["children"][1])
         self.assertFalse((self.target / ".setup-backups").exists())
 
         preview.write_text("{}")
@@ -62,6 +73,24 @@ class HerdrInstallerTests(unittest.TestCase):
         inode = preview.stat().st_ino
         self.install()
         self.assertEqual(preview.stat().st_ino, inode)
+
+    def test_installs_tmux_mode_and_platform_keys(self):
+        for platform, keys in (
+            ("darwin", "keys.macos.json"),
+            ("linux", "keys.linux.json"),
+        ):
+            with (
+                self.subTest(platform=platform),
+                mock.patch.object(installer.sys, "platform", platform),
+            ):
+                self.install()
+                self.assertEqual(
+                    (self.target / "keys.json").read_bytes(),
+                    (installer.SOURCE / keys).read_bytes(),
+                )
+                self.assertTrue((self.target / "mods/tmux-mode/main.js").is_file())
+                bindings = json.loads((self.target / "keys.json").read_text())
+                self.assertEqual(bindings["global"]["ctrl-a"], "mod.open:tmux-mode")
 
     def test_refuses_symlinked_backup_directory_before_replacement(self):
         personal = self.root / "personal"

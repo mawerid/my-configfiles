@@ -1,5 +1,5 @@
 import { View, div } from "gpui-kit";
-import { closeOverlay, commands, focused, hc, nextCommand, notify, panes, props, run, theme } from "herdr";
+import { closeOverlay, commands, focused, hc, layout, nextCommand, notify, panes, props, run, theme } from "herdr";
 
 const directions = new Map([
   ["h", "left"], ["j", "down"], ["k", "up"], ["l", "right"],
@@ -20,6 +20,26 @@ const prefixActions = new Map([
   ["z", ["pane.zoom"]],
   ...Array.from({ length: 9 }, (_, i) => [String(i + 1), ["tab.select", { index: i + 1 }]]),
 ]);
+
+const panelViews = new Map([["f", "files"], ["g", "changes"]]);
+function find(node, id) {
+  if (node?.id === id) return node;
+  for (const child of node?.children ?? []) {
+    const found = find(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+// Like the tab bar's Files/Changes buttons: show that view, or hide the panel when it already shows.
+function togglePanel(view) {
+  const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
+  const shown = body?.active ?? body?.children?.[0]?.id;
+  if (panel && !panel.hidden && shown === view) run("layout.hide", { id: "panel" });
+  else {
+    run("layout.select", { stack: "panel-body", child: view });
+    run("layout.show", { id: "panel" });
+  }
+}
 
 function keyName({ key, key_char, modifiers }) {
   if (modifiers.alt || modifiers.platform) return null;
@@ -181,6 +201,10 @@ export default class TmuxMode extends View {
     }
     if (this.mode === "resize") return this.sendToTerminal(terminalKey(key));
     if (key === "[") return this.beginCopy(cx);
+    if (panelViews.has(key)) {
+      this.dismiss();
+      return togglePanel(panelViews.get(key));
+    }
     const direction = directions.get(key);
     const action = direction ? ["pane.go", { direction }] : prefixActions.get(key);
     this.dismiss();
@@ -199,6 +223,6 @@ export default class TmuxMode extends View {
     }
     if (this.mode === "resize") return root.child("Resize · H/J/K/L · Esc to leave");
     return root.child("Ctrl+A · c new tab · | / - split · h/j/k/l focus")
-      .child(div().mt(6).text_color(colors.muted).child("[ copy mode · H/J/K/L resize · Esc cancel"));
+      .child(div().mt(6).text_color(colors.muted).child("[ copy mode · H/J/K/L resize · f files · g changes · Esc cancel"));
   }
 }

@@ -56,6 +56,12 @@ reinstall.
 Mason installs Pyright when Node.js and npm are available, and gopls when Go
 is available. Neovim can also use an existing language server on `PATH`.
 
+`Ctrl+h/j/k/l` moves between Neovim splits. At the last split it continues
+into the next tmux pane, or, when Neovim runs in a Herdr terminal without
+tmux, into the next Herdr pane, locally and over SSH. Herdr's Spaces list
+follows the `nvim.nav` label that Neovim sets on its terminal through `hc`.
+In shells those keys keep their usual meaning; use `Ctrl+A` `h/j/k/l` there.
+
 ### Install the Nerd Font on Ubuntu
 
 Run these commands on the Ubuntu desktop where you open your terminal.
@@ -99,7 +105,7 @@ bash setup-herdr.sh
 ```
 
 Setup copies settings to `~/.config/herdr-app` and installs the checked-in
-keyboard shortcuts on macOS. Set `HERDR_APP_HOME` or pass `--target-dir` to use
+keyboard shortcuts: Herdr's defaults for the platform plus tmux mode. Set `HERDR_APP_HOME` or pass `--target-dir` to use
 a different app home. Setup derives Files Preview from the installed main
 layout. Each run also installs the newest
 [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme)
@@ -107,7 +113,7 @@ icons (MIT) from npm after checking the published SHA-512; without network it
 keeps the installed icons. Changes made in Herdr stay in the app home until you copy them back
 into `config/herdr-app/`.
 
-On macOS, `Ctrl+A` starts the tmux-style Herdr mode. Press it twice to send a
+`Ctrl+A` starts the tmux-style Herdr mode on macOS and Linux. Press it twice to send a
 literal `Ctrl+A` to the terminal, including when you run tmux inside Herdr.
 
 | After `Ctrl+A` | Action |
@@ -118,9 +124,17 @@ literal `Ctrl+A` to the terminal, including when you run tmux inside Herdr.
 | `H` / `J` / `K` / `L` | Resize in that direction by 5 pixels, repeat within 300 ms |
 | `[` | Copy mode. Move with `h/j/k/l`, start a selection with `v`, copy with `y`, or exit with `Esc` |
 | `z` | Toggle pane zoom |
+| `f` / `g` | Show **Files** / **Changes**, or hide the panel when that view already shows |
 
 Keyboard resizing requires Herdr's `pane.resize` command. Herdr reloads its
 config files automatically when they change.
+
+Files and Changes take the keyboard when you move focus to them (`Ctrl+A` `l`,
+or Herdr's pane-focus keys). In **Files**, arrows or `h/j/k/l` walk the tree,
+`Enter` or `Space` opens a folder or previews a file, and `Esc`, `←` or
+`Backspace` leaves a preview. In **Changes**, `↑` / `↓` or `j` / `k` step through
+the changed files and show each diff, `Enter` toggles the diff, and `i` jumps to
+the commit message. `Esc` in either panel returns focus to the terminal.
 
 ### Files Preview, HTML and PDF
 
@@ -141,8 +155,8 @@ use and start again on the next click. The Herdr machine name must be
 something `ssh` can reach, such as a Host from `~/.ssh/config`. Select
 **View source** to load the HTML in Herdr. Local HTML opens
 as source. A PDF shows an **Open in browser** button in a remote space, through
-the same tunnel, and **Open** locally for your default PDF app. The layout and panel build on
-Herdr's defaults. [Upstream files](https://github.com/herdrdev/herdr-app/tree/master/defaults) · [Apache-2.0 license](config/herdr-app/LICENSE-files-preview)
+the same tunnel, and **Open** locally for your default PDF app. The layout and the Files,
+Changes and Spaces mods build on Herdr's defaults. [Upstream files](https://github.com/herdrdev/herdr-app/tree/master/defaults) · [Apache-2.0 license](config/herdr-app/LICENSE-files-preview)
 
 ## Global workflows
 
@@ -189,7 +203,7 @@ attempts another restart.
 | tmux and Neovim | None. | Managed config files are replaced in place. Unrelated Neovim files, plugin locks, and LazyVim extras stay in the active profile. |
 | Ubuntu editor binaries | An existing entry in `~/.local/bin` is saved under `<name>.bak.*/` before it is replaced, if it points outside this bootstrap’s managed builds or is a regular file. | Previous managed releases remain under the editor data directory. Package-manager binaries stay in their package locations. |
 | Codex and Claude | Replaced settings, instructions, roles, skills, or rules and eligible legacy entries go under `.setup-backups/<UTC timestamp>/` in the corresponding config directory. | Current links, unrelated entries, and legacy symlinks are skipped. |
-| Herdr | Replaced settings, macOS keys, managed mod files, and the generated preview layout go under `.setup-backups/<UTC timestamp>-*/` in the app home. | Matching files are skipped. The shipped layout and your `html-forwards.json` are left in place. |
+| Herdr | Replaced settings, keys, managed mod files, and the generated preview layout go under `.setup-backups/<UTC timestamp>-*/` in the app home. | Matching files are skipped. The shipped layout and your `html-forwards.json` are left in place. |
 | Docker | None. | Setup keeps the previous config temporarily for rollback and removes it on exit. An identical file skips validation and restart. |
 | OpenShell | None. | Gateway and research session state use their existing runtime directories and volumes. |
 
