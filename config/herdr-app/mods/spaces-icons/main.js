@@ -74,6 +74,15 @@ function spaceAvatar(name) {
 
 const ICONS = "mods/files-preview/icons/";
 const SAFE_ICON = /^[a-z0-9][a-z0-9_.-]*\.svg$/;
+// Robotics and ML folder names Material doesn't know, mapped to its closest icons.
+const ROBOT = "folder-robot.svg", MODEL = "folder-class.svg";
+const FOLDER_ALIASES = {
+  ros: ROBOT, ros2: ROBOT, ros_ws: ROBOT, ros2_ws: ROBOT, catkin_ws: ROBOT, colcon_ws: ROBOT, urdf: ROBOT,
+  robotics: ROBOT, slam: ROBOT, perception: ROBOT, planning: ROBOT, control: ROBOT, ai: ROBOT, ml: ROBOT, llm: ROBOT,
+  training: MODEL, train: MODEL, checkpoints: MODEL, weights: MODEL,
+  datasets: "folder-database.svg", dataset: "folder-database.svg",
+  experiments: "folder-simulations.svg", runs: "folder-simulations.svg",
+};
 // A picked icon or emoji (shared "space.icons", set by space-icon), else a leading
 // emoji in the name, else the Material folder icon for the repo or folder name.
 function spaceIcon(table, w, folder) {
@@ -85,7 +94,7 @@ function spaceIcon(table, w, folder) {
   if (!table) return { letter: spaceAvatar(w.name) };
   const light = themes().find((item) => item.name === settings().theme)?.light;
   const name = folder.toLowerCase();
-  return { icon: (light && table.light?.folderNames?.[name]) || table.folderNames?.[name] || table.folder };
+  return { icon: (light && table.light?.folderNames?.[name]) || table.folderNames?.[name] || FOLDER_ALIASES[name] || table.folder };
 }
 
 // A space speaks up only when something in it needs you.
