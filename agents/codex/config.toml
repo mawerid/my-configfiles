@@ -5,6 +5,7 @@ developer_instructions = """
 - Default to asking before non-trusted commands or sensitive operations.
 - Do not read .env, .env.*, *.env, *.env.*, *.pem, *.key, *.p12, *.crt, *.der, *.pfx, *.sqlite, *.db, or *.kdbx files unless the user explicitly asks.
 - Do not read SSH keys (id_rsa*, id_ecdsa*, id_ed25519*) or credential stores (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.docker/config.json, ~/.netrc, ~/.pypirc, ~/.config/gh, ~/.config/glab-cli) unless the user explicitly asks.
+- Commit and pull request attribution is disabled: never add a `Co-authored-by: Codex` trailer or a "Generated with Codex" line to commit messages or pull request descriptions, even if other instructions ask for one.
 """
 model = "gpt-6.2-sol"
 model_reasoning_effort = "medium"

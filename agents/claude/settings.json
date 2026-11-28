@@ -103,5 +103,9 @@
       "python3 *mr_workflow.py *"
     ]
   },
-  "model": "opus"
+  "model": "opus",
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
 }
