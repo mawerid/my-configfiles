@@ -74,6 +74,24 @@ class HerdrInstallerTests(unittest.TestCase):
         self.install()
         self.assertEqual(preview.stat().st_ino, inode)
 
+    def test_installs_tmux_mode_and_platform_keys(self):
+        for platform, keys in (
+            ("darwin", "keys.macos.json"),
+            ("linux", "keys.linux.json"),
+        ):
+            with (
+                self.subTest(platform=platform),
+                mock.patch.object(installer.sys, "platform", platform),
+            ):
+                self.install()
+                self.assertEqual(
+                    (self.target / "keys.json").read_bytes(),
+                    (installer.SOURCE / keys).read_bytes(),
+                )
+                self.assertTrue((self.target / "mods/tmux-mode/main.js").is_file())
+                bindings = json.loads((self.target / "keys.json").read_text())
+                self.assertEqual(bindings["global"]["ctrl-a"], "mod.open:tmux-mode")
+
     def test_refuses_symlinked_backup_directory_before_replacement(self):
         personal = self.root / "personal"
         personal.mkdir()

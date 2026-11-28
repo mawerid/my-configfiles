@@ -2,8 +2,8 @@
 // https://github.com/herdrdev/herdr-app/blob/master/defaults/mods/files/main.js
 // A lazy file browser for the focused pane's folder, with bounded read-only previews.
 import { View, div, svg, image } from "gpui-kit";
-import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
-import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window } from "herdr";
+import { v_flex, h_flex, Editor, EditorState, TextView, ScrollHandle } from "gpui-base";
+import { appHome, checking, spaces, panes, focused, exec, readTextFile, watchFolder, theme, themes, settings, window, nextCommand, run } from "herdr";
 function location() {
   const space = spaces().find(s => s.active), f = focused();
   const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
@@ -138,7 +138,15 @@ export default class Files extends View {
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
     this.markdown = null; this.ignored = new Set(); this.icons = null;
+    this.handle = cx.focus_handle(); this.scroll = ScrollHandle.new();
+    this.cursor = null; this.visible = []; // keyboard selection (a tree path) and the tree's rows in order
     if (checking()) return;
+    // pane.go hands this panel the keyboard ("focusable" in mod.json).
+    cx.spawn(async cx => {
+      for (;;) {
+        if (await nextCommand() === "focus") { this.handle.focus(); cx.notify(); }
+      }
+    });
     cx.spawn(async cx => {
       const json = await readTextFile(appHome() + "/" + ICONS + "icons.json").catch(() => null);
       try { this.icons = json ? JSON.parse(json) : null; } catch { this.icons = null; }
@@ -351,8 +359,10 @@ export default class Files extends View {
       if (out.length >= TOTAL) break;
       const path = prefix ? `${prefix}/${entry.name}` : entry.name, open = this.folders.has(path), mark = this.marks[`${this.root}/${path}`];
       const dimmed = this.isIgnored(`${this.root}/${path}`);
+      this.visible.push({ path, dir: entry.dir, open });
       out.push(h_flex().id(`file-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
-        .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.show(path, cx, true))
+        .when(path === this.cursor, el => el.bg(t.selected))
+        .on_click((_e, cx) => { this.cursor = path; entry.dir ? this.toggle(path, cx) : this.show(path, cx, true); })
         .child(entry.dir ? svg(`mods/files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
         .child(this.icons
           ? image(ICONS + iconFile(this.icons, entry.name, entry.dir, open)).size(16).flex_none().opacity(dimmed ? 0.45 : 1)
@@ -362,6 +372,38 @@ export default class Files extends View {
       if (entry.dir && open) this.rows(path, depth + 1, out, t);
     }
     return out;
+  }
+  // Arrows (or h/j/k/l) walk the tree, Enter/Space opens; in a preview Esc/←/Backspace goes back.
+  // Esc in the tree gives the keyboard back to the terminal on the left.
+  key(e, cx) {
+    const k = e.key;
+    if (e.modifiers.control || e.modifiers.alt || e.modifiers.platform) return;
+    if (this.file) {
+      if (k !== "escape" && k !== "left" && k !== "backspace") return;
+      this.cursor = this.file;
+      this.show(null);
+    } else if (k === "escape") {
+      run("pane.go", { direction: "left" });
+    } else {
+      const rows = this.visible;
+      if (!rows.length) return;
+      let at = rows.findIndex(r => r.path === this.cursor);
+      const row = rows[at];
+      if (k === "down" || k === "j") at = Math.min(rows.length - 1, at + 1);
+      else if (k === "up" || k === "k") at = Math.max(0, at - 1);
+      else if ((k === "right" || k === "l") && row?.dir) { if (row.open) at = Math.min(rows.length - 1, at + 1); else this.toggle(row.path, cx); }
+      else if ((k === "left" || k === "h") && row) {
+        if (row.dir && row.open) this.toggle(row.path, cx);
+        else if (row.path.includes("/")) at = rows.findIndex(r => r.path === row.path.slice(0, row.path.lastIndexOf("/")));
+      }
+      else if ((k === "enter" || k === "space" || k === " ") && row) row.dir ? this.toggle(row.path, cx) : this.show(row.path, cx, true);
+      else return;
+      at = Math.max(0, at);
+      this.cursor = rows[at].path;
+      this.scroll.scroll_to_item(at);
+    }
+    cx.stop_propagation();
+    cx.notify();
   }
   isIgnored(path) {
     for (let p = path; p.includes("/"); p = p.slice(0, p.lastIndexOf("/"))) if (this.ignored.has(p)) return true;
@@ -405,12 +447,13 @@ export default class Files extends View {
       else this.refreshIfDue(cx);
     }
     const t = theme();
-    return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
+    this.visible = [];
+    return v_flex().id("files").track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx)).size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
-      .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
+      .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
         .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("File list limited to 500 entries per folder and 5,000 total")))))
       .when(this.markdown !== null, el => el.child(h_flex().flex_none().px(14).py(5).gap(4).border_b(1).border_color(t.border)

@@ -99,7 +99,7 @@ bash setup-herdr.sh
 ```
 
 Setup copies settings to `~/.config/herdr-app` and installs the checked-in
-keyboard shortcuts on macOS. Set `HERDR_APP_HOME` or pass `--target-dir` to use
+keyboard shortcuts: Herdr's defaults for the platform plus tmux mode. Set `HERDR_APP_HOME` or pass `--target-dir` to use
 a different app home. Setup derives Files Preview from the installed main
 layout. Each run also installs the newest
 [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme)
@@ -107,7 +107,7 @@ icons (MIT) from npm after checking the published SHA-512; without network it
 keeps the installed icons. Changes made in Herdr stay in the app home until you copy them back
 into `config/herdr-app/`.
 
-On macOS, `Ctrl+A` starts the tmux-style Herdr mode. Press it twice to send a
+`Ctrl+A` starts the tmux-style Herdr mode on macOS and Linux. Press it twice to send a
 literal `Ctrl+A` to the terminal, including when you run tmux inside Herdr.
 
 | After `Ctrl+A` | Action |
@@ -118,9 +118,17 @@ literal `Ctrl+A` to the terminal, including when you run tmux inside Herdr.
 | `H` / `J` / `K` / `L` | Resize in that direction by 5 pixels, repeat within 300 ms |
 | `[` | Copy mode. Move with `h/j/k/l`, start a selection with `v`, copy with `y`, or exit with `Esc` |
 | `z` | Toggle pane zoom |
+| `f` / `g` | Show **Files** / **Changes**, or hide the panel when that view already shows |
 
 Keyboard resizing requires Herdr's `pane.resize` command. Herdr reloads its
 config files automatically when they change.
+
+Files and Changes take the keyboard when you move focus to them (`Ctrl+A` `l`,
+or Herdr's pane-focus keys). In **Files**, arrows or `h/j/k/l` walk the tree,
+`Enter` or `Space` opens a folder or previews a file, and `Esc`, `←` or
+`Backspace` leaves a preview. In **Changes**, `↑` / `↓` or `j` / `k` step through
+the changed files and show each diff, `Enter` toggles the diff, and `i` jumps to
+the commit message. `Esc` in either panel returns focus to the terminal.
 
 ### Files Preview, HTML and PDF
 

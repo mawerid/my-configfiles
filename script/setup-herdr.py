@@ -140,12 +140,13 @@ def install(target):
         "mods/space-icon/mod.json",
         "mods/changes-diff/main.js",
         "mods/changes-diff/mod.json",
+        "mods/tmux-mode/main.js",
+        "mods/tmux-mode/mod.json",
     ]
-    if sys.platform == "darwin":
-        paths.extend(("mods/tmux-mode/main.js", "mods/tmux-mode/mod.json"))
     files = {name: (SOURCE / name).read_bytes() for name in paths}
-    if sys.platform == "darwin":
-        files["keys.json"] = (SOURCE / "keys.macos.json").read_bytes()
+    # Herdr's own defaults for the platform plus the Ctrl-A tmux-mode bindings.
+    keys = "keys.macos.json" if sys.platform == "darwin" else "keys.linux.json"
+    files["keys.json"] = (SOURCE / keys).read_bytes()
     layout = preview_layout(target)
     if layout is not None:
         files[PREVIEW_LAYOUT] = layout

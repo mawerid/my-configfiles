@@ -1,9 +1,10 @@
 // Adapted from Herdr Desktop's Changes mod v0.1.18 (Apache-2.0).
 // https://github.com/herdrdev/herdr-app/blob/v0.1.18/defaults/mods/changes/main.js
-// Changed: stronger added/removed line colors, an edge bar and a +/− column, cyan hunk headers.
+// Changed: stronger added/removed line colors, an edge bar and a +/− column, cyan hunk headers;
+// keyboard focus (pane.go) with ↑/↓ through files, Enter, i for the commit message, Esc back.
 import { View, div } from "gpui-kit";
-import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
-import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
+import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list, ScrollHandle } from "gpui-base";
+import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window, nextCommand, run } from "herdr";
 
 // The panels share data in one VM, but their host tasks belong to separate copies.
 const scans = globalThis[Symbol.for("herdr.repoStatus.v2")] ??= new Map();
@@ -103,6 +104,13 @@ export default class Changes extends View {
     this.input.on("submit", (_e, cx) => this.commit(cx));
     this.input.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
     this.input.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
+    this.scroll = ScrollHandle.new();
+    // pane.go hands this panel the keyboard ("focusable" in mod.json).
+    cx.spawn(async cx => {
+      for (;;) {
+        if (await nextCommand() === "focus") { this.handle.focus(); cx.notify(); }
+      }
+    });
     this.refresh(cx);
     cx.timer.every(500, cx => this.refreshIfDue(cx));
   }
@@ -306,7 +314,19 @@ export default class Changes extends View {
     const enabled = Boolean(this.message.trim() && this.root && !this.busy && !this.loading);
     return v_flex().id("changes").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13).track_focus(this.handle)
       .on_key_down((e, cx) => {
-        if (e.key === "escape" && this.typing) { this.typing = false; this.handle.focus(); cx.stop_propagation(); cx.notify(); }
+        if (e.key === "escape" && this.typing) { this.typing = false; this.handle.focus(); cx.stop_propagation(); cx.notify(); return; }
+        if (this.typing || e.modifiers.control || e.modifiers.alt || e.modifiers.platform) return;
+        const at = this.files.findIndex((f) => f.path === this.open);
+        const next = e.key === "down" || e.key === "j" ? Math.min(this.files.length - 1, at + 1)
+          : e.key === "up" || e.key === "k" ? Math.max(0, at - 1) : null;
+        if (next !== null && this.files.length) {
+          if (this.files[next].path !== this.open) this.pick(this.files[next].path, cx);
+          this.scroll.scroll_to_item(next);
+        } else if (e.key === "enter" && this.files.length) this.pick(this.files[Math.max(0, at)].path, cx);
+        else if (e.key === "i") this.input.focus();
+        else if (e.key === "escape") run("pane.go", { direction: "left" });
+        else return;
+        cx.stop_propagation(); cx.notify();
       })
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Changes"))
@@ -314,7 +334,7 @@ export default class Changes extends View {
         .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`)))
       // overflow_y_scrollbar() wraps the list, so its flex sizing never reached the panel's layout.
       .child(div().flex_1().min_h(44).max_h(this.files.length * 28 + 12).relative().border_b(1).border_color(t.border)
-        .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().p(6).children(this.files.map((f) => {
+        .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.files.map((f) => {
         const parts = f.path.split("/"), name = parts.pop();
         return h_flex().id(`change-${f.path}`).h(28).flex_none().px(8).gap(8).items_center().rounded(7).cursor_pointer().when(this.open === f.path, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.pick(f.path, cx))
           .child(div().w(14).text_size(11).text_color(f.status === "A" ? t.ansi2 : f.status === "D" ? t.ansi1 : f.status === "U" ? t.ansi1 : t.blocked).child(f.status))
